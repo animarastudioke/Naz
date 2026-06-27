@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Naz — Isometric Characters</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: radial-gradient(ellipse at 50% 40%, #1a1a3e 0%, #0a0a18 70%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      gap: 32px;
+    }
+
+    h1 {
+      color: rgba(200, 200, 255, 0.7);
+      font-size: 0.78rem;
+      font-weight: 400;
+      letter-spacing: 0.4em;
+      text-transform: uppercase;
+    }
+
+    .stage {
+      display: flex;
+      gap: 40px;
+      align-items: flex-end;
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      padding: 32px 28px 20px;
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 18px;
+      backdrop-filter: blur(4px);
+    }
+
+    .label {
+      color: rgba(180, 180, 220, 0.6);
+      font-size: 0.7rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Isometric Characters</h1>
+
+<div class="stage">
+
+  <!-- ═══════════════════════════════ MALE ═══════════════════════════════ -->
+  <div class="card">
+    <svg width="180" height="310" viewBox="0 0 180 310" xmlns="http://www.w3.org/2000/svg">
+
+      <!-- Ground shadow -->
+      <ellipse cx="90" cy="292" rx="44" ry="11" fill="rgba(0,0,0,0.4)"/>
+
+      <!-- ── Isometric platform ── -->
+      <polygon points="90,282 134,258 134,272 90,296 46,272 46,258" fill="#181830"/>
+      <polygon points="46,258 90,234 134,258 90,282" fill="#22223e"/>
+      <polygon points="90,234 134,258 134,258 90,258" fill="rgba(255,255,255,0.04)"/>
+
+      <!-- ── BOOTS / SHOES ── -->
+      <!-- Back boot (right, partially behind) -->
+      <polygon points="100,248 118,240 134,248 116,256" fill="#3A2A1A"/>
+      <polygon points="100,248 116,256 116,266 100,258" fill="#2A1A0A"/>
+      <polygon points="116,256 134,248 134,258 116,266" fill="#1A0A00"/>
+      <!-- Boot toe cap back -->
+      <polygon points="126,246 134,242 134,250 126,254" fill="#4A3A2A"/>
+
+      <!-- Front boot (left) -->
+      <polygon points="64,252 82,244 100,252 82,260" fill="#3A2A1A"/>
+      <polygon points="64,252 82,260 82,270 64,262" fill="#2A1A0A"/>
+      <polygon points="82,260 100,252 100,262 82,270" fill="#1A0A00"/>
+      <!-- Boot toe cap front -->
+      <polygon points="90,258 100,254 100,262 90,266" fill="#4A3A2A"/>
+
+      <!-- ── LOWER LEGS / PANTS ── -->
+      <!-- Back leg -->
+      <polygon points="100,228 118,220 134,228 116,236" fill="#354560"/>
+      <polygon points="100,228 116,236 116,252 100,244" fill="#25354A"/>
+      <polygon points="116,236 134,228 134,242 116,250" fill="#152535"/>
+
+      <!-- Front leg -->
+      <polygon points="64,232 82,224 100,232 82,240" fill="#354560"/>
+      <polygon points="64,232 82,240 82,254 64,246" fill="#25354A"/>
+      <polygon points="82,240 100,232 100,246 82,254" fill="#152535"/>
+
+      <!-- ── BELT ── -->
+      <polygon points="56,218 90,202 124,218 90,234" fill="#7A4010"/>
+      <polygon points="56,218 90,234 90,242 56,226" fill="#5A3008"/>
+      <polygon points="90,234 124,218 124,226 90,242" fill="#4A2000"/>
+      <!-- Buckle -->
+      <polygon points="84,228 90,225 96,228 90,231" fill="#C8A030"/>
+      <polygon points="85,228 90,226 95,228 90,230" fill="#E8C050"/>
+
+      <!-- ── TORSO / SHIRT ── -->
+      <polygon points="54,188 90,170 126,188 90,206" fill="#2E5FA8"/>
+      <polygon points="54,188 90,206 90,222 54,204" fill="#1E4F98"/>
+      <polygon points="90,206 126,188 126,204 90,222" fill="#0E3F88"/>
+
+      <!-- Shirt pocket detail -->
+      <polygon points="73,195 80,191 80,200 73,204" fill="rgba(255,255,255,0.15)"/>
+      <polygon points="73,195 80,191 80,193 73,197" fill="rgba(255,255,255,0.2)"/>
+
+      <!-- Shirt crease -->
+      <line x1="90" y1="170" x2="86" y2="192" stroke="rgba(0,0,50,0.2)" stroke-width="1.5"/>
+      <line x1="90" y1="170" x2="94" y2="190" stroke="rgba(0,0,50,0.15)" stroke-width="1.5"/>
+
+      <!-- ── ARMS ── -->
+      <!-- Near arm (our right) — shirt sleeve then skin -->
+      <polygon points="126,188 142,180 142,198 126,206" fill="#2E5FA8"/>
+      <polygon points="126,188 126,206 142,198" fill="#0E3F88"/>
+      <polygon points="126,198 142,190 142,216 126,224" fill="#D4A574"/>
+      <polygon points="126,198 126,224 142,216" fill="#B48254"/>
+      <!-- Hand near -->
+      <polygon points="126,220 142,212 146,220 130,228" fill="#C49264"/>
+      <polygon points="126,220 130,228 128,232 124,224" fill="#B48254"/>
+
+      <!-- Far arm (our left) — shirt sleeve then skin -->
+      <polygon points="54,188 38,180 38,200 54,208" fill="#1E4F98"/>
+      <polygon points="54,198 38,190 38,216 54,224" fill="#D4A574"/>
+      <polygon points="54,198 54,224 38,216" fill="#B48254"/>
+      <!-- Hand far -->
+      <polygon points="54,220 38,212 34,220 50,228" fill="#C49264"/>
+
+      <!-- ── NECK ── -->
+      <polygon points="78,166 90,160 102,166 90,172" fill="#D4A574"/>
+      <polygon points="78,166 90,172 90,184 78,178" fill="#C49264"/>
+      <polygon points="90,172 102,166 102,178 90,184" fill="#B48254"/>
+
+      <!-- Collar -->
+      <polygon points="70,176 90,167 110,176 90,185" fill="#2E5FA8"/>
+
+      <!-- ── HEAD ── -->
+      <!-- Top face -->
+      <polygon points="70,142 90,132 110,142 90,152" fill="#D4A574"/>
+      <!-- Front face -->
+      <polygon points="70,142 90,152 90,172 70,162" fill="#D4A574"/>
+      <!-- Side face -->
+      <polygon points="90,152 110,142 110,160 90,170" fill="#C49264"/>
+
+      <!-- Ear (near) -->
+      <polygon points="70,148 64,146 64,158 70,160" fill="#C49264"/>
+      <!-- Ear (far) -->
+      <polygon points="110,142 116,140 116,150 110,152" fill="#B48254"/>
+
+      <!-- ── FACIAL FEATURES ── -->
+      <!-- Eyes -->
+      <ellipse cx="76" cy="155" rx="3.8" ry="3.8" fill="white"/>
+      <circle cx="76" cy="155.5" r="2.2" fill="#2A1808"/>
+      <circle cx="76.8" cy="154.6" r="0.8" fill="white"/>
+      <ellipse cx="76" cy="151.8" rx="4" ry="1.4" fill="#2C1810"/><!-- upper lid -->
+
+      <ellipse cx="87" cy="152" rx="3.8" ry="3.8" fill="white"/>
+      <circle cx="87" cy="152.5" r="2.2" fill="#2A1808"/>
+      <circle cx="87.8" cy="151.6" r="0.8" fill="white"/>
+      <ellipse cx="87" cy="148.8" rx="4" ry="1.4" fill="#2C1810"/>
+
+      <!-- Eyebrows (straight — masculine) -->
+      <path d="M72,150 Q76,147 80,149" stroke="#2A1808" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      <path d="M83,147 Q87,144 91,146" stroke="#2A1808" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+
+      <!-- Nose -->
+      <path d="M81,161 L83,164 L80,165" stroke="#B48254" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+
+      <!-- Mouth / subtle smirk -->
+      <path d="M74,168 Q81,172 88,167" stroke="#9A6444" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+
+      <!-- Light stubble hint -->
+      <path d="M71,163 Q78,172 90,173 Q100,172 110,165"
+            stroke="rgba(160,110,70,0.18)" stroke-width="3" fill="none"/>
+
+      <!-- ── HAIR (short, dark, textured) ── -->
+      <!-- Crown -->
+      <polygon points="70,142 90,132 110,142 90,124" fill="#2C1810"/>
+      <ellipse cx="90" cy="128" rx="23" ry="8" fill="#2C1810"/>
+      <!-- Side left -->
+      <polygon points="70,142 64,140 64,162 70,164" fill="#2C1810"/>
+      <!-- Side right -->
+      <polygon points="110,142 116,138 116,158 110,160" fill="#1C0808"/>
+      <!-- Hair texture lines -->
+      <path d="M72,138 Q82,132 92,131 Q102,133 110,138"
+            stroke="#3C2818" stroke-width="1.5" fill="none"/>
+      <path d="M74,135 Q82,130 90,129" stroke="#3C2818" stroke-width="1" fill="none"/>
+    </svg>
+    <span class="label">Male</span>
+  </div>
+
+  <!-- ══════════════════════════════ FEMALE ══════════════════════════════ -->
+  <div class="card">
+    <svg width="180" height="310" viewBox="0 0 180 310" xmlns="http://www.w3.org/2000/svg">
+
+      <!-- Ground shadow -->
+      <ellipse cx="90" cy="292" rx="44" ry="11" fill="rgba(0,0,0,0.4)"/>
+
+      <!-- ── Isometric platform ── -->
+      <polygon points="90,282 134,258 134,272 90,296 46,272 46,258" fill="#181830"/>
+      <polygon points="46,258 90,234 134,258 90,282" fill="#22223e"/>
+
+      <!-- ── HEELED SHOES ── -->
+      <!-- Back shoe -->
+      <polygon points="102,256 118,248 132,256 116,264" fill="#8B1A3A"/>
+      <polygon points="102,256 116,264 116,272 102,264" fill="#6B1028"/>
+      <polygon points="116,264 132,256 132,264 116,272" fill="#5B0820"/>
+      <!-- heel spike back -->
+      <line x1="108" y1="268" x2="108" y2="278" stroke="#5B0820" stroke-width="3"/>
+
+      <!-- Front shoe -->
+      <polygon points="66,260 82,252 98,260 82,268" fill="#8B1A3A"/>
+      <polygon points="66,260 82,268 82,276 66,268" fill="#6B1028"/>
+      <polygon points="82,268 98,260 98,268 82,276" fill="#5B0820"/>
+      <!-- heel spike front -->
+      <line x1="70" y1="272" x2="70" y2="282" stroke="#5B0820" stroke-width="3"/>
+
+      <!-- ── DRESS SKIRT (wide, flared) ── -->
+      <!-- Back skirt panel -->
+      <polygon points="100,224 126,212 134,240 110,252" fill="#B03070"/>
+      <!-- Main skirt -->
+      <polygon points="50,224 90,208 130,224 130,252 90,268 50,252" fill="#E04090"/>
+      <polygon points="130,224 130,252 90,268" fill="#B03070"/>
+      <!-- Skirt hem shimmer -->
+      <polygon points="50,250 90,266 130,250 90,234" fill="rgba(255,180,210,0.2)"/>
+      <!-- Skirt fold details -->
+      <line x1="70" y1="215" x2="62" y2="252" stroke="rgba(255,100,150,0.3)" stroke-width="1.5"/>
+      <line x1="90" y1="208" x2="88" y2="255" stroke="rgba(255,100,150,0.25)" stroke-width="1.5"/>
+      <line x1="110" y1="215" x2="118" y2="250" stroke="rgba(180,50,100,0.3)" stroke-width="1.5"/>
+
+      <!-- ── BODICE / TORSO ── -->
+      <polygon points="60,186 90,170 120,186 120,214 90,230 60,214" fill="#E04090"/>
+      <polygon points="120,186 120,214 90,230" fill="#B03070"/>
+
+      <!-- Bodice waist seam -->
+      <polygon points="60,210 90,226 120,210 90,194" fill="rgba(255,200,220,0.15)"/>
+
+      <!-- Neckline V -->
+      <polygon points="75,175 90,167 105,175 90,183" fill="#F070A0"/>
+      <line x1="90" y1="167" x2="85" y2="183" stroke="#C04070" stroke-width="1.2"/>
+      <line x1="90" y1="167" x2="95" y2="181" stroke="#C04070" stroke-width="1.2"/>
+
+      <!-- ── ARMS ── -->
+      <!-- Near arm (our right) — short sleeve to wrist -->
+      <polygon points="120,186 136,178 136,200 120,208" fill="#E04090"/>
+      <polygon points="120,186 120,208 136,200" fill="#B03070"/>
+      <polygon points="120,196 136,188 136,218 120,226" fill="#D4A574"/>
+      <polygon points="120,196 120,226 136,218" fill="#C49264"/>
+      <!-- Hand near -->
+      <polygon points="120,222 136,214 140,222 124,230" fill="#C49264"/>
+
+      <!-- Far arm -->
+      <polygon points="60,186 44,178 44,202 60,210" fill="#B03070"/>
+      <polygon points="60,196 44,188 44,218 60,226" fill="#D4A574"/>
+      <polygon points="60,196 60,226 44,218" fill="#C49264"/>
+      <polygon points="60,222 44,214 40,222 56,230" fill="#C49264"/>
+
+      <!-- ── NECK ── -->
+      <polygon points="79,164 90,158 101,164 90,170" fill="#D4A574"/>
+      <polygon points="79,164 90,170 90,182 79,176" fill="#C49264"/>
+      <polygon points="90,170 101,164 101,174 90,180" fill="#B48254"/>
+
+      <!-- ── HEAD ── -->
+      <polygon points="70,136 90,126 110,136 90,146" fill="#D4A574"/>
+      <polygon points="70,136 90,146 90,166 70,156" fill="#D4A574"/>
+      <polygon points="90,146 110,136 110,154 90,164" fill="#C49264"/>
+
+      <!-- Ears -->
+      <polygon points="70,142 64,140 64,152 70,154" fill="#C49264"/>
+      <polygon points="110,136 116,134 116,144 110,146" fill="#B48254"/>
+      <!-- Earring -->
+      <circle cx="64" cy="154" r="2.5" fill="#E8C040"/>
+      <circle cx="116" cy="146" r="2.5" fill="#C8A030"/>
+
+      <!-- ── FACIAL FEATURES (feminine) ── -->
+      <!-- Rosy cheeks -->
+      <ellipse cx="74" cy="153" rx="7" ry="4.5" fill="rgba(240,100,130,0.28)"/>
+      <ellipse cx="88" cy="150" rx="7" ry="4.5" fill="rgba(240,100,130,0.28)"/>
+
+      <!-- Eyes — larger, defined lashes -->
+      <ellipse cx="76" cy="148" rx="4.5" ry="4.8" fill="white"/>
+      <circle cx="76" cy="148.5" r="2.8" fill="#5A2080"/>
+      <circle cx="77" cy="147.5" r="1" fill="white"/>
+      <!-- upper lash bar left -->
+      <ellipse cx="76" cy="144" rx="4.8" ry="1.6" fill="#2A1030"/>
+      <!-- lower lash hint -->
+      <ellipse cx="76" cy="152.5" rx="3.5" ry="0.8" fill="rgba(42,16,48,0.4)"/>
+
+      <ellipse cx="87" cy="145" rx="4.5" ry="4.8" fill="white"/>
+      <circle cx="87" cy="145.5" r="2.8" fill="#5A2080"/>
+      <circle cx="88" cy="144.5" r="1" fill="white"/>
+      <ellipse cx="87" cy="141" rx="4.8" ry="1.6" fill="#2A1030"/>
+      <ellipse cx="87" cy="149.5" rx="3.5" ry="0.8" fill="rgba(42,16,48,0.4)"/>
+
+      <!-- Eyebrows — arched, thinner -->
+      <path d="M72,143 Q76,138.5 80,141" stroke="#5A3020" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <path d="M83,140 Q87,135.5 91,138" stroke="#5A3020" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+
+      <!-- Nose — petite -->
+      <path d="M81.5,156 Q83,158 81,159" stroke="#C49264" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+
+      <!-- Lips — fuller, colored -->
+      <path d="M74,162 Q78,159.5 81,162 Q84,159.5 88,162"
+            stroke="#C0304A" stroke-width="1.4" fill="rgba(200,60,90,0.55)" stroke-linecap="round"/>
+      <path d="M74,162 Q81,166.5 88,162"
+            stroke="#C0304A" stroke-width="1.6" fill="rgba(220,80,110,0.5)" stroke-linecap="round"/>
+      <!-- Cupid's bow highlight -->
+      <path d="M77,162 Q81,160.5 85,162" stroke="rgba(255,180,190,0.5)" stroke-width="0.8" fill="none"/>
+
+      <!-- ── LONG HAIR ── -->
+      <!-- Crown top -->
+      <polygon points="70,136 90,126 110,136 90,110" fill="#8B4513"/>
+      <ellipse cx="90" cy="117" rx="23" ry="10" fill="#8B4513"/>
+
+      <!-- Left flowing side hair -->
+      <polygon points="70,136 63,133 48,186 58,195 68,160" fill="#8B4513"/>
+      <polygon points="48,186 58,195 54,235 42,224" fill="#7B3510"/>
+      <!-- Left hair wave detail -->
+      <path d="M64,134 Q52,168 48,210 Q48,224 52,236"
+            stroke="#A05523" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+      <!-- Right flowing side hair -->
+      <polygon points="110,136 117,132 130,178 120,186 114,160" fill="#7B3510"/>
+      <polygon points="130,178 120,186 124,218 136,210" fill="#6B2508"/>
+      <path d="M116,132 Q128,162 130,196 Q132,210 128,220"
+            stroke="#9A4518" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+      <!-- Back hair mass -->
+      <path d="M70,136 Q60,150 50,195" stroke="rgba(100,50,10,0.4)" stroke-width="8" fill="none"/>
+
+      <!-- Hair part line and shine -->
+      <path d="M75,119 Q82,113 92,112 Q100,114 108,120"
+            stroke="#A06530" stroke-width="1.5" fill="none"/>
+      <path d="M80,117 Q86,112 92,114"
+            stroke="rgba(200,140,80,0.4)" stroke-width="2" fill="none"/>
+
+      <!-- Hair accessory — small bow -->
+      <polygon points="108,126 118,120 120,126 110,132" fill="#FF80A0"/>
+      <polygon points="120,120 130,126 128,132 118,126" fill="#FF80A0"/>
+      <circle cx="119" cy="126" r="4" fill="#FF4080"/>
+      <circle cx="119" cy="126" r="2" fill="#FF80A0"/>
+    </svg>
+    <span class="label">Female</span>
+  </div>
+
+</div>
+
+</body>
+</html>
