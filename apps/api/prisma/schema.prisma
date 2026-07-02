@@ -1,0 +1,661 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// TENANCY & IDENTITY
+// ──────────────────────────────────────────────────────────────────────────
+
+model Business {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  industry        String
+  country         String   @default("KE")
+  currency        String   @default("KES")
+  logoUrl         String?
+  brandColor      String?  @default("#5B5FEF")
+  kraPin          String? // Kenya Revenue Authority PIN for tax compliance
+  vatRegistered   Boolean  @default(false)
+  vatRate         Decimal  @default(16) @db.Decimal(5, 2)
+  timezone        String   @default("Africa/Nairobi")
+  invoicePrefix   String   @default("INV")
+  quotePrefix     String   @default("QT")
+  onboardingDone  Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  branches        Branch[]
+  users           BusinessUser[]
+  clients         Client[]
+  services        Service[]
+  servicePackages ServicePackage[]
+  bookings        Booking[]
+  quotations      Quotation[]
+  invoices        Invoice[]
+  payments        Payment[]
+  expenses        Expense[]
+  activityLogs    ActivityLog[]
+  documentCounters DocumentCounter[]
+  whatsappMessages WhatsAppMessage[]
+  vendorPayouts   VendorPayout[]
+  loyaltyProgram  LoyaltyProgram?
+  quoteTemplates  QuoteTemplate[]
+  automationRules AutomationRule[]
+  integration     BusinessIntegration?
+}
+
+model BusinessIntegration {
+  id                 String   @id @default(cuid())
+  businessId          String   @unique
+  business            Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  mpesaShortcode      String?
+  mpesaConsumerKey    String?
+  mpesaConsumerSecret String?
+  mpesaPasskey        String?
+  mpesaEnv            String   @default("sandbox")
+
+  stripeAccountId     String?
+  stripeSecretKey     String?
+
+  whatsappPhoneNumberId String?
+  whatsappAccessToken    String?
+  whatsappBusinessId     String?
+
+  updatedAt           DateTime @updatedAt
+}
+
+model Branch {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name       String
+  address    String?
+  phone      String?
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  bookings   Booking[]
+  staff      BusinessUser[]
+
+  @@index([businessId])
+}
+
+enum StaffRole {
+  OWNER
+  ADMIN
+  MANAGER
+  STAFF
+  VENDOR
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  phone        String?
+  avatarUrl    String?
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships  BusinessUser[]
+  refreshTokens RefreshToken[]
+}
+
+model BusinessUser {
+  id         String    @id @default(cuid())
+  businessId String
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       StaffRole @default(STAFF)
+  branchId   String?
+  branch     Branch?   @relation(fields: [branchId], references: [id])
+  invitedAt  DateTime  @default(now())
+  joinedAt   DateTime?
+  isActive   Boolean   @default(true)
+
+  bookingsAssigned Booking[] @relation("StaffBookings")
+  activityLogs     ActivityLog[]
+  vendorPayouts    VendorPayout[]
+
+  @@unique([businessId, userId])
+  @@index([businessId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model ActivityLog {
+  id              String        @id @default(cuid())
+  businessId      String
+  business        Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  actorId         String?
+  actor           BusinessUser? @relation(fields: [actorId], references: [id])
+  action          String
+  entityType      String
+  entityId        String
+  metadata        Json?
+  ipAddress       String?
+  createdAt       DateTime      @default(now())
+
+  @@index([businessId, createdAt])
+  @@index([entityType, entityId])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// CRM
+// ──────────────────────────────────────────────────────────────────────────
+
+model Client {
+  id             String   @id @default(cuid())
+  businessId     String
+  business       Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  fullName       String
+  email          String?
+  phone          String
+  whatsappNumber String?
+  company        String?
+  address        String?
+  tags           String[] @default([])
+  segment        String? // e.g. VIP, Lead, Repeat, Corporate
+  loyaltyPoints  Int      @default(0)
+  notes          String?
+  source         String? // referral, website, whatsapp, walk-in
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  bookings       Booking[]
+  quotations     Quotation[]
+  invoices       Invoice[]
+  payments       Payment[]
+  communications CommunicationEntry[]
+
+  @@index([businessId])
+  @@index([businessId, phone])
+}
+
+model CommunicationEntry {
+  id         String              @id @default(cuid())
+  clientId   String
+  client     Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  channel    CommunicationChannel
+  direction  String // INBOUND | OUTBOUND
+  subject    String?
+  message    String
+  metadata   Json?
+  createdAt  DateTime            @default(now())
+
+  @@index([clientId, createdAt])
+}
+
+enum CommunicationChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+  CALL
+  NOTE
+}
+
+model LoyaltyProgram {
+  id                String   @id @default(cuid())
+  businessId        String   @unique
+  business          Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  pointsPerCurrency Decimal  @default(1) @db.Decimal(10, 2)
+  redemptionRate    Decimal  @default(0.01) @db.Decimal(10, 4) // currency value per point
+  isActive          Boolean  @default(false)
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// SERVICES / PACKAGES / BOOKINGS
+// ──────────────────────────────────────────────────────────────────────────
+
+model Service {
+  id             String   @id @default(cuid())
+  businessId     String
+  business       Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  category       String? // photography, catering, consulting, hotel-room...
+  durationMins   Int      @default(60)
+  price          Decimal  @db.Decimal(12, 2)
+  taxRate        Decimal  @default(16) @db.Decimal(5, 2)
+  requiresDeposit Boolean @default(false)
+  depositPercent Decimal? @db.Decimal(5, 2)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  bookings       Booking[]
+  packageItems   ServicePackageItem[]
+
+  @@index([businessId])
+}
+
+model ServicePackage {
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  eventType   String? // wedding, corporate-event, hotel-stay, agency-retainer
+  price       Decimal  @db.Decimal(12, 2)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  items       ServicePackageItem[]
+
+  @@index([businessId])
+}
+
+model ServicePackageItem {
+  id               String         @id @default(cuid())
+  servicePackageId String
+  servicePackage   ServicePackage @relation(fields: [servicePackageId], references: [id], onDelete: Cascade)
+  serviceId        String
+  service          Service        @relation(fields: [serviceId], references: [id])
+  quantity         Int            @default(1)
+
+  @@index([servicePackageId])
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  RESCHEDULED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  businessId      String
+  business        Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchId        String?
+  branch          Branch?       @relation(fields: [branchId], references: [id])
+  clientId        String
+  client          Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  serviceId       String
+  service         Service       @relation(fields: [serviceId], references: [id])
+  staffId         String?
+  staff           BusinessUser? @relation("StaffBookings", fields: [staffId], references: [id])
+  status          BookingStatus @default(PENDING)
+  startAt         DateTime
+  endAt           DateTime
+  depositAmount   Decimal?      @db.Decimal(12, 2)
+  depositPaid     Boolean       @default(false)
+  cancellationReason String?
+  rescheduleOf    String? // previous booking id if rescheduled
+  notes           String?
+  reminderSentAt  DateTime?
+  publicToken     String        @unique @default(cuid()) // for self-service reschedule/cancel link
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  invoices        Invoice[]
+  payments        Payment[]
+
+  @@index([businessId, startAt])
+  @@index([clientId])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// QUOTATIONS
+// ──────────────────────────────────────────────────────────────────────────
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  VIEWED
+  APPROVED
+  DECLINED
+  EXPIRED
+  CONVERTED
+}
+
+model QuoteTemplate {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name       String
+  layout     Json // drag-and-drop section config
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([businessId])
+}
+
+model Quotation {
+  id              String          @id @default(cuid())
+  businessId      String
+  business        Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  clientId        String
+  client          Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  number          String
+  title           String
+  status          QuotationStatus @default(DRAFT)
+  subtotal        Decimal         @db.Decimal(12, 2)
+  discountAmount  Decimal         @default(0) @db.Decimal(12, 2)
+  taxAmount       Decimal         @default(0) @db.Decimal(12, 2)
+  total           Decimal         @db.Decimal(12, 2)
+  depositAmount   Decimal         @default(0) @db.Decimal(12, 2)
+  currency        String          @default("KES")
+  expiresAt       DateTime?
+  sentAt          DateTime?
+  viewedAt        DateTime?
+  approvedAt      DateTime?
+  declinedAt      DateTime?
+  signatureName   String?
+  signatureImageUrl String?
+  signedIpAddress String?
+  notes           String?
+  publicToken     String          @unique @default(cuid()) // WhatsApp / email approval link
+  aiGenerated     Boolean         @default(false)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  items           QuotationItem[]
+  invoice         Invoice?
+
+  @@unique([businessId, number])
+  @@index([businessId, status])
+  @@index([clientId])
+}
+
+model QuotationItem {
+  id               String    @id @default(cuid())
+  quotationId      String
+  quotation        Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  serviceId        String?
+  description      String
+  quantity         Decimal   @db.Decimal(12, 2)
+  unitPrice        Decimal   @db.Decimal(12, 2)
+  taxRate          Decimal   @default(16) @db.Decimal(5, 2)
+  discountPercent  Decimal   @default(0) @db.Decimal(5, 2)
+  lineTotal        Decimal   @db.Decimal(12, 2)
+  sortOrder        Int       @default(0)
+
+  @@index([quotationId])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// INVOICING
+// ──────────────────────────────────────────────────────────────────────────
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  VOID
+  REFUNDED
+}
+
+enum RecurringInterval {
+  NONE
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+}
+
+model Invoice {
+  id                 String            @id @default(cuid())
+  businessId         String
+  business           Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  clientId           String
+  client             Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  quotationId        String?           @unique
+  quotation          Quotation?        @relation(fields: [quotationId], references: [id])
+  bookingId          String?
+  booking            Booking?          @relation(fields: [bookingId], references: [id])
+  number             String
+  status             InvoiceStatus     @default(DRAFT)
+  subtotal           Decimal           @db.Decimal(12, 2)
+  discountAmount     Decimal           @default(0) @db.Decimal(12, 2)
+  taxAmount          Decimal           @default(0) @db.Decimal(12, 2)
+  total              Decimal           @db.Decimal(12, 2)
+  amountPaid         Decimal           @default(0) @db.Decimal(12, 2)
+  balanceDue         Decimal           @db.Decimal(12, 2)
+  currency           String            @default("KES")
+  exchangeRateToBase Decimal           @default(1) @db.Decimal(12, 6)
+  dueDate            DateTime
+  sentAt             DateTime?
+  paidAt             DateTime?
+  recurringInterval  RecurringInterval @default(NONE)
+  nextRecurrenceDate DateTime?
+  parentInvoiceId    String? // for recurring instances
+  overdueReminderCount Int             @default(0)
+  lastReminderSentAt DateTime?
+  notes              String?
+  publicToken        String            @unique @default(cuid())
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  items              InvoiceItem[]
+  payments           Payment[]
+  creditNotes        CreditNote[]
+
+  @@unique([businessId, number])
+  @@index([businessId, status])
+  @@index([clientId])
+  @@index([dueDate])
+}
+
+model InvoiceItem {
+  id               String    @id @default(cuid())
+  invoiceId        String
+  invoice          Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  serviceId        String?
+  description      String
+  quantity         Decimal   @db.Decimal(12, 2)
+  unitPrice        Decimal   @db.Decimal(12, 2)
+  taxRate          Decimal   @default(16) @db.Decimal(5, 2)
+  discountPercent  Decimal   @default(0) @db.Decimal(5, 2)
+  lineTotal        Decimal   @db.Decimal(12, 2)
+  sortOrder        Int       @default(0)
+
+  @@index([invoiceId])
+}
+
+model CreditNote {
+  id         String   @id @default(cuid())
+  invoiceId  String
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  number     String
+  amount     Decimal  @db.Decimal(12, 2)
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@index([invoiceId])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// PAYMENTS
+// ──────────────────────────────────────────────────────────────────────────
+
+enum PaymentMethod {
+  MPESA_STK
+  CARD_STRIPE
+  BANK_TRANSFER
+  CASH
+  PAYMENT_LINK
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+model Payment {
+  id                 String        @id @default(cuid())
+  businessId         String
+  business           Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  clientId           String?
+  client             Client?       @relation(fields: [clientId], references: [id])
+  invoiceId          String?
+  invoice            Invoice?      @relation(fields: [invoiceId], references: [id])
+  bookingId          String?
+  booking            Booking?      @relation(fields: [bookingId], references: [id])
+  method             PaymentMethod
+  status             PaymentStatus @default(PENDING)
+  amount             Decimal       @db.Decimal(12, 2)
+  currency           String        @default("KES")
+
+  // M-Pesa specific
+  mpesaCheckoutRequestId String?   @unique
+  mpesaMerchantRequestId String?
+  mpesaReceiptNumber     String?
+  mpesaPhoneNumber       String?
+
+  // Stripe specific
+  stripePaymentIntentId  String?   @unique
+  stripeChargeId         String?
+
+  paymentLinkToken   String?       @unique
+  reconciled         Boolean       @default(false)
+  failureReason      String?
+  paidAt             DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([businessId, status])
+  @@index([invoiceId])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// EXPENSES & VENDOR PAYOUTS
+// ──────────────────────────────────────────────────────────────────────────
+
+enum ExpenseCategory {
+  SUPPLIES
+  TRAVEL
+  MARKETING
+  SOFTWARE
+  VENDOR_PAYOUT
+  UTILITIES
+  RENT
+  OTHER
+}
+
+model Expense {
+  id          String          @id @default(cuid())
+  businessId  String
+  business    Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category    ExpenseCategory
+  description String
+  amount      Decimal         @db.Decimal(12, 2)
+  currency    String          @default("KES")
+  receiptUrl  String?
+  incurredAt  DateTime
+  createdAt   DateTime        @default(now())
+
+  @@index([businessId, incurredAt])
+}
+
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
+model VendorPayout {
+  id            String       @id @default(cuid())
+  businessId    String
+  business      Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  vendorId      String? // BusinessUser with role VENDOR; null when vendorName (external vendor) is used instead
+  vendor        BusinessUser? @relation(fields: [vendorId], references: [id])
+  vendorName    String? // for external vendors without an account
+  bookingId     String?
+  description   String
+  amount        Decimal      @db.Decimal(12, 2)
+  status        PayoutStatus @default(PENDING)
+  dueDate       DateTime?
+  paidAt        DateTime?
+  createdAt     DateTime     @default(now())
+
+  @@index([businessId, status])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// WHATSAPP & AUTOMATION
+// ──────────────────────────────────────────────────────────────────────────
+
+model WhatsAppMessage {
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  clientPhone String
+  direction   String // INBOUND | OUTBOUND
+  messageType String // text, template, document, image
+  content     String
+  waMessageId String?
+  status      String? // sent, delivered, read, failed
+  relatedEntityType String?
+  relatedEntityId    String?
+  createdAt   DateTime @default(now())
+
+  @@index([businessId, clientPhone])
+}
+
+enum AutomationTrigger {
+  BOOKING_CREATED
+  BOOKING_REMINDER_24H
+  QUOTATION_SENT
+  QUOTATION_EXPIRING
+  INVOICE_OVERDUE
+  PAYMENT_RECEIVED
+}
+
+model AutomationRule {
+  id          String            @id @default(cuid())
+  businessId  String
+  business    Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name        String
+  trigger     AutomationTrigger
+  channel     CommunicationChannel @default(WHATSAPP)
+  templateBody String
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+
+  @@index([businessId, trigger])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// DOCUMENT NUMBERING
+// ──────────────────────────────────────────────────────────────────────────
+
+model DocumentCounter {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  docType    String // INVOICE | QUOTATION
+  year       Int
+  sequence   Int      @default(0)
+
+  @@unique([businessId, docType, year])
+}
