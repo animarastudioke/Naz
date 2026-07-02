@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Team — KaziHQ</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content">
+      <div class="space-between mb-3">
+        <div>
+          <h1 class="text-2xl font-semibold">Team</h1>
+          <p class="text-secondary mt-1">Invite staff and control what they can access.</p>
+        </div>
+        <button class="btn btn-primary" onclick="KaziUI.openModal('invite-modal')">Invite team member</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr></thead>
+          <tbody id="team-body"></tbody>
+        </table>
+        <div class="empty-state" id="empty-state" style="display:none;">No team members yet.</div>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="invite-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="text-lg font-semibold">Invite team member</h2>
+        <button class="btn btn-ghost" onclick="KaziUI.closeModal('invite-modal')">✕</button>
+      </div>
+      <form id="invite-form">
+        <div class="field-group"><label class="label">Full name</label><input class="input" id="fullName" required /></div>
+        <div class="field-group"><label class="label">Email</label><input class="input" type="email" id="email" required /></div>
+        <div class="field-group">
+          <label class="label">Role</label>
+          <select class="input" id="role">
+            <option>ADMIN</option><option selected>STAFF</option><option>MANAGER</option><option>VENDOR</option>
+          </select>
+        </div>
+        <p class="error-text" id="error" style="display:none;"></p>
+        <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Send invite</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script>
+    if (KaziUI.initDashboardShell()) {
+      load();
+    }
+
+    async function load() {
+      try {
+        var team = await KaziAPI.get("/users");
+        render(team);
+      } catch (err) {}
+    }
+
+    function render(team) {
+      document.getElementById("empty-state").style.display = team.length === 0 ? "block" : "none";
+      document.getElementById("team-body").innerHTML = team
+        .map(function (m) {
+          return (
+            "<tr><td>" + KaziUI.escapeHtml(m.user.fullName) + "</td><td>" + KaziUI.escapeHtml(m.user.email) + "</td>" +
+            "<td>" + KaziUI.escapeHtml(m.role) + "</td><td>" + (m.joinedAt ? "Active" : "Invited") + "</td></tr>"
+          );
+        })
+        .join("");
+    }
+
+    document.getElementById("invite-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      KaziUI.showError("error", "");
+      var btn = document.getElementById("submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Sending invite…";
+      try {
+        await KaziAPI.post("/users/invite", {
+          fullName: document.getElementById("fullName").value,
+          email: document.getElementById("email").value,
+          role: document.getElementById("role").value,
+        });
+        KaziUI.closeModal("invite-modal");
+        document.getElementById("invite-form").reset();
+        load();
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Send invite";
+      }
+    });
+  </script>
+</body>
+</html>

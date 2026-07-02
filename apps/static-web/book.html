@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Book an appointment</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <main class="container" style="max-width:600px;padding-top:40px;padding-bottom:40px;">
+    <h1 class="text-2xl font-semibold" style="text-align:center;" id="business-title">Loading…</h1>
+
+    <div class="card mt-3" id="page-body" style="display:none;">
+      <!-- Step 1: services -->
+      <label class="label">1. Choose a service</label>
+      <div id="services-list" class="stack gap-1" style="margin-top:8px;"></div>
+
+      <!-- Step 2: date -->
+      <div id="date-step" class="mt-2" style="display:none;">
+        <label class="label" for="date-input">2. Choose a date</label>
+        <input class="input" type="date" id="date-input" />
+      </div>
+
+      <!-- Step 3: time -->
+      <div id="slots-step" class="mt-2" style="display:none;">
+        <label class="label">3. Choose a time</label>
+        <div id="slots-list" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;"></div>
+      </div>
+
+      <!-- Step 4: details -->
+      <form id="booking-form" class="mt-2" style="display:none;border-top:1px solid var(--line-hairline);padding-top:16px;">
+        <label class="label">4. Your details</label>
+        <div class="field-group">
+          <input class="input" id="clientFullName" placeholder="Full name" required />
+        </div>
+        <div class="field-group">
+          <input class="input" id="clientPhone" placeholder="WhatsApp / phone number" required />
+        </div>
+        <div class="field-group">
+          <input class="input" id="clientEmail" type="email" placeholder="Email (optional)" />
+        </div>
+        <p class="error-text" id="error" style="display:none;"></p>
+        <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Confirm booking request</button>
+      </form>
+    </div>
+
+    <div class="card mt-3" id="success-card" style="display:none;text-align:center;">
+      <h2 class="text-xl font-semibold">Booking request received!</h2>
+      <p class="text-secondary mt-1"><span id="success-business"></span> will confirm your appointment shortly via WhatsApp or email.</p>
+    </div>
+  </main>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script>
+    var slug = new URLSearchParams(window.location.search).get("slug");
+    var page = null;
+    var selectedServiceId = null;
+    var selectedService = null;
+    var selectedSlot = null;
+
+    if (!slug) {
+      document.getElementById("business-title").textContent = "Missing booking page (?slug=... required)";
+    } else {
+      load();
+    }
+
+    async function load() {
+      try {
+        page = await KaziAPI.public.get("/public/business/" + encodeURIComponent(slug));
+        document.getElementById("business-title").textContent = "Book with " + page.name;
+        document.title = "Book with " + page.name;
+        renderServices();
+        document.getElementById("page-body").style.display = "block";
+      } catch (err) {
+        document.getElementById("business-title").textContent = "Booking page not found";
+      }
+    }
+
+    function renderServices() {
+      var list = document.getElementById("services-list");
+      list.innerHTML = page.services
+        .map(function (s) {
+          return (
+            '<button type="button" class="btn btn-secondary" style="justify-content:space-between;text-align:left;height:auto;padding:12px;" ' +
+            'onclick="selectService(\'' + s.id + "')\">" +
+            '<span><strong>' + KaziUI.escapeHtml(s.name) + "</strong>" +
+            (s.description ? '<br><span class="text-xs text-muted">' + KaziUI.escapeHtml(s.description) + "</span>" : "") +
+            '<br><span class="text-xs text-muted">' + s.durationMins + " minutes</span></span>" +
+            "<span>" + KaziUI.money(s.price, page.currency) + "</span>" +
+            "</button>"
+          );
+        })
+        .join("");
+    }
+
+    function selectService(serviceId) {
+      selectedServiceId = serviceId;
+      selectedService = page.services.find(function (s) { return s.id === serviceId; });
+      selectedSlot = null;
+      document.getElementById("date-step").style.display = "block";
+      document.getElementById("slots-step").style.display = "none";
+      document.getElementById("booking-form").style.display = "none";
+    }
+
+    document.getElementById("date-input").addEventListener("change", async function () {
+      if (!selectedServiceId || !this.value) return;
+      try {
+        var res = await KaziAPI.public.get(
+          "/public/business/" + encodeURIComponent(slug) + "/availability?serviceId=" + selectedServiceId + "&date=" + this.value
+        );
+        renderSlots(res.slots || []);
+      } catch (err) {
+        renderSlots([]);
+      }
+    });
+
+    function renderSlots(slots) {
+      var wrap = document.getElementById("slots-step");
+      var list = document.getElementById("slots-list");
+      wrap.style.display = "block";
+      if (slots.length === 0) {
+        list.innerHTML = '<p class="text-muted text-sm">No slots available this day.</p>';
+        return;
+      }
+      list.innerHTML = slots
+        .map(function (s) {
+          var time = new Date(s.startAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+          return (
+            '<button type="button" class="btn btn-secondary btn-sm" onclick=\'selectSlot(' +
+            JSON.stringify(s).replace(/'/g, "&#39;") +
+            ")\">" + time + "</button>"
+          );
+        })
+        .join("");
+    }
+
+    function selectSlot(slot) {
+      selectedSlot = slot;
+      document.getElementById("booking-form").style.display = "block";
+    }
+
+    document.getElementById("booking-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      if (!selectedSlot) return;
+      KaziUI.showError("error", "");
+      var btn = document.getElementById("submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Booking…";
+      try {
+        await KaziAPI.public.post("/public/business/" + encodeURIComponent(slug) + "/bookings", {
+          serviceId: selectedServiceId,
+          startAt: selectedSlot.startAt,
+          endAt: selectedSlot.endAt,
+          clientFullName: document.getElementById("clientFullName").value,
+          clientPhone: document.getElementById("clientPhone").value,
+          clientEmail: document.getElementById("clientEmail").value || undefined,
+        });
+        document.getElementById("page-body").style.display = "none";
+        document.getElementById("success-business").textContent = page.name;
+        document.getElementById("success-card").style.display = "block";
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Confirm booking request";
+      }
+    });
+  </script>
+</body>
+</html>

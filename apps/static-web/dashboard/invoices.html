@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Invoices — KaziHQ</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content">
+      <div class="space-between mb-3">
+        <div>
+          <h1 class="text-2xl font-semibold">Invoices</h1>
+          <p class="text-secondary mt-1">Track payment status and get paid via M-Pesa or card.</p>
+        </div>
+        <button class="btn btn-primary" onclick="openNewInvoiceModal()">New invoice</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Number</th><th>Client</th><th>Due</th><th>Balance</th><th>Status</th></tr></thead>
+          <tbody id="invoices-body"></tbody>
+        </table>
+        <div class="empty-state" id="empty-state" style="display:none;">No invoices yet.</div>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="new-invoice-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="text-lg font-semibold">New invoice</h2>
+        <button class="btn btn-ghost" onclick="KaziUI.closeModal('new-invoice-modal')">✕</button>
+      </div>
+      <form id="invoice-form">
+        <div class="field-group">
+          <label class="label">Client</label>
+          <select class="input" id="clientId" required><option value="">Select client…</option></select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div class="field-group">
+            <label class="label">Due date</label>
+            <input class="input" type="date" id="dueDate" required />
+          </div>
+          <div class="field-group">
+            <label class="label">Recurring</label>
+            <select class="input" id="recurringInterval">
+              <option value="NONE">One-time</option>
+              <option value="WEEKLY">Weekly</option>
+              <option value="MONTHLY">Monthly</option>
+              <option value="QUARTERLY">Quarterly</option>
+              <option value="ANNUALLY">Annually</option>
+            </select>
+          </div>
+        </div>
+        <label class="label">Line items</label>
+        <div id="items-rows"></div>
+        <button type="button" class="btn btn-ghost btn-sm mt-1" onclick="addItemRow()">+ Add line item</button>
+        <p class="error-text" id="error" style="display:none;"></p>
+        <button type="submit" class="btn btn-primary btn-block mt-2" id="submit-btn">Create invoice</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script>
+    if (KaziUI.initDashboardShell()) {
+      load();
+      KaziAPI.get("/clients").then(populateClients).catch(function () {});
+    }
+
+    async function load() {
+      try {
+        var invoices = await KaziAPI.get("/invoices");
+        renderInvoices(invoices);
+      } catch (err) {}
+    }
+
+    function populateClients(clients) {
+      var select = document.getElementById("clientId");
+      select.innerHTML = '<option value="">Select client…</option>';
+      clients.forEach(function (c) {
+        var opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.fullName;
+        select.appendChild(opt);
+      });
+    }
+
+    function renderInvoices(invoices) {
+      document.getElementById("empty-state").style.display = invoices.length === 0 ? "block" : "none";
+      document.getElementById("invoices-body").innerHTML = invoices
+        .map(function (inv) {
+          return (
+            '<tr><td><a href="/dashboard/invoice.html?id=' + inv.id + '" style="color:var(--brand-600);font-weight:500;">' + inv.number + "</a></td>" +
+            "<td>" + KaziUI.escapeHtml(inv.client.fullName) + "</td>" +
+            "<td>" + KaziUI.formatDate(inv.dueDate) + "</td>" +
+            "<td>" + KaziUI.money(inv.balanceDue) + "</td>" +
+            "<td>" + KaziUI.badgeHtml(inv.status) + "</td></tr>"
+          );
+        })
+        .join("");
+    }
+
+    function openNewInvoiceModal() {
+      document.getElementById("items-rows").innerHTML = "";
+      addItemRow();
+      KaziUI.openModal("new-invoice-modal");
+    }
+    window.openNewInvoiceModal = openNewInvoiceModal;
+
+    function addItemRow() {
+      var row = document.createElement("div");
+      row.className = "line-item-row";
+      row.innerHTML =
+        '<input class="input" placeholder="Description" data-field="description" />' +
+        '<input class="input" type="number" min="0.01" step="0.01" placeholder="Qty" value="1" data-field="quantity" />' +
+        '<input class="input" type="number" min="0" step="0.01" placeholder="Unit price" value="0" data-field="unitPrice" />' +
+        '<input class="input" type="number" min="0" placeholder="VAT%" value="16" data-field="taxRate" />' +
+        '<button type="button" class="btn btn-ghost btn-sm" onclick="this.parentElement.remove();">✕</button>';
+      document.getElementById("items-rows").appendChild(row);
+    }
+    window.addItemRow = addItemRow;
+
+    function collectItems() {
+      var rows = document.querySelectorAll("#items-rows .line-item-row");
+      return Array.prototype.map.call(rows, function (row) {
+        return {
+          description: row.querySelector('[data-field="description"]').value,
+          quantity: Number(row.querySelector('[data-field="quantity"]').value) || 0,
+          unitPrice: Number(row.querySelector('[data-field="unitPrice"]').value) || 0,
+          taxRate: Number(row.querySelector('[data-field="taxRate"]').value) || 0,
+        };
+      });
+    }
+
+    document.getElementById("invoice-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      KaziUI.showError("error", "");
+      var btn = document.getElementById("submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+      try {
+        await KaziAPI.post("/invoices", {
+          clientId: document.getElementById("clientId").value,
+          items: collectItems(),
+          dueDate: new Date(document.getElementById("dueDate").value).toISOString(),
+          recurringInterval: document.getElementById("recurringInterval").value,
+        });
+        KaziUI.closeModal("new-invoice-modal");
+        document.getElementById("invoice-form").reset();
+        load();
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Create invoice";
+      }
+    });
+  </script>
+</body>
+</html>

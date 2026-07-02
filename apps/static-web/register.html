@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Create your workspace — KaziHQ</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <main class="center-screen">
+    <div class="card" style="width:100%;max-width:440px;">
+      <h1 class="text-xl font-semibold mb-1">Create your workspace</h1>
+      <p class="text-sm text-secondary mb-3">Free to start — no credit card required</p>
+
+      <form id="register-form">
+        <div class="field-group">
+          <label class="label" for="businessName">Business name</label>
+          <input class="input" id="businessName" required />
+        </div>
+        <div class="field-group">
+          <label class="label" for="ownerName">Your name</label>
+          <input class="input" id="ownerName" required />
+        </div>
+        <div class="field-group">
+          <label class="label" for="email">Email</label>
+          <input class="input" id="email" type="email" required />
+        </div>
+        <div class="field-group">
+          <label class="label" for="password">Password</label>
+          <input class="input" id="password" type="password" minlength="8" required />
+        </div>
+        <div class="field-group">
+          <label class="label" for="phone">Phone (WhatsApp number)</label>
+          <input class="input" id="phone" placeholder="2547XXXXXXXX" required />
+        </div>
+        <div class="field-group">
+          <label class="label" for="industry">Industry</label>
+          <select class="input" id="industry">
+            <option>Photography</option>
+            <option>Events</option>
+            <option>Hospitality</option>
+            <option>Consulting</option>
+            <option>Agency</option>
+            <option>Beauty &amp; Wellness</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="label" for="country">Country</label>
+          <select class="input" id="country">
+            <option value="KE">Kenya</option>
+            <option value="UG">Uganda</option>
+            <option value="TZ">Tanzania</option>
+            <option value="RW">Rwanda</option>
+            <option value="NG">Nigeria</option>
+            <option value="ZA">South Africa</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+        <p class="error-text" id="error" style="display:none;"></p>
+        <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Create workspace</button>
+      </form>
+
+      <p class="text-sm text-secondary mt-3" style="text-align:center;">
+        Already have an account? <a href="/login.html" style="color:var(--brand-600);font-weight:500;">Sign in</a>
+      </p>
+    </div>
+  </main>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script>
+    document.getElementById("register-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      KaziUI.showError("error", "");
+      var btn = document.getElementById("submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Creating workspace…";
+      try {
+        var res = await KaziAPI.public.post("/auth/register", {
+          businessName: document.getElementById("businessName").value,
+          ownerName: document.getElementById("ownerName").value,
+          email: document.getElementById("email").value,
+          password: document.getElementById("password").value,
+          phone: document.getElementById("phone").value,
+          industry: document.getElementById("industry").value,
+          country: document.getElementById("country").value,
+        });
+        KaziAPI.session.set(res);
+        window.location.href = "/dashboard/index.html";
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Create workspace";
+      }
+    });
+  </script>
+</body>
+</html>

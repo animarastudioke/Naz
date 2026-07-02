@@ -1,0 +1,4 @@
+[build]
+  # No build step - these are plain static files, deployed as-is.
+  publish = "."
+  command = ""

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Settings — KaziHQ</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content" style="max-width:640px;">
+      <h1 class="text-2xl font-semibold">Settings</h1>
+      <p class="text-secondary mt-1 mb-3">Business profile, tax settings and integrations.</p>
+
+      <div class="card mb-2">
+        <div class="card-header"><h3 class="card-title">Business profile</h3></div>
+        <form id="business-form">
+          <div class="field-group"><label class="label">Business name</label><input class="input" id="name" /></div>
+          <div class="field-group"><label class="label">KRA PIN</label><input class="input" id="kraPin" /></div>
+          <div class="field-group"><label class="label">VAT rate (%)</label><input class="input" type="number" id="vatRate" /></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="field-group"><label class="label">Invoice prefix</label><input class="input" id="invoicePrefix" /></div>
+            <div class="field-group"><label class="label">Quote prefix</label><input class="input" id="quotePrefix" /></div>
+          </div>
+          <p class="error-text" id="business-error" style="display:none;"></p>
+          <button type="submit" class="btn btn-primary" id="business-submit-btn">Save changes</button>
+        </form>
+      </div>
+
+      <div class="card mb-2">
+        <div class="card-header"><h3 class="card-title">M-Pesa (Daraja STK push) <span id="mpesa-status" class="text-xs text-muted"></span></h3></div>
+        <div class="field-group"><label class="label">Shortcode</label><input class="input" id="mpesaShortcode" /></div>
+        <div class="field-group"><label class="label">Consumer key</label><input class="input" id="mpesaConsumerKey" /></div>
+        <div class="field-group"><label class="label">Consumer secret</label><input class="input" type="password" id="mpesaConsumerSecret" /></div>
+        <div class="field-group"><label class="label">Passkey</label><input class="input" type="password" id="mpesaPasskey" /></div>
+        <button class="btn btn-primary" onclick="saveIntegration({mpesaShortcode: val('mpesaShortcode'), mpesaConsumerKey: val('mpesaConsumerKey'), mpesaConsumerSecret: val('mpesaConsumerSecret'), mpesaPasskey: val('mpesaPasskey')})">Save M-Pesa credentials</button>
+      </div>
+
+      <div class="card mb-2">
+        <div class="card-header"><h3 class="card-title">WhatsApp Cloud API <span id="whatsapp-status" class="text-xs text-muted"></span></h3></div>
+        <div class="field-group"><label class="label">Phone number ID</label><input class="input" id="whatsappPhoneNumberId" /></div>
+        <div class="field-group"><label class="label">Access token</label><input class="input" type="password" id="whatsappAccessToken" /></div>
+        <button class="btn btn-primary" onclick="saveIntegration({whatsappPhoneNumberId: val('whatsappPhoneNumberId'), whatsappAccessToken: val('whatsappAccessToken')})">Save WhatsApp credentials</button>
+      </div>
+
+      <div class="card mb-2">
+        <div class="card-header"><h3 class="card-title">Stripe <span id="stripe-status" class="text-xs text-muted"></span></h3></div>
+        <div class="field-group"><label class="label">Secret key</label><input class="input" type="password" id="stripeSecretKey" /></div>
+        <button class="btn btn-primary" onclick="saveIntegration({stripeSecretKey: val('stripeSecretKey')})">Save Stripe credentials</button>
+      </div>
+    </main>
+  </div>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script>
+    if (KaziUI.initDashboardShell()) {
+      loadBusiness();
+      loadIntegrations();
+    }
+
+    function val(id) {
+      return document.getElementById(id).value;
+    }
+
+    async function loadBusiness() {
+      try {
+        var biz = await KaziAPI.get("/business/me");
+        document.getElementById("name").value = biz.name || "";
+        document.getElementById("kraPin").value = biz.kraPin || "";
+        document.getElementById("vatRate").value = biz.vatRate || "";
+        document.getElementById("invoicePrefix").value = biz.invoicePrefix || "";
+        document.getElementById("quotePrefix").value = biz.quotePrefix || "";
+      } catch (err) {}
+    }
+
+    async function loadIntegrations() {
+      try {
+        var data = await KaziAPI.get("/business/integrations");
+        document.getElementById("mpesa-status").textContent = data.mpesaConfigured ? "· Connected" : "";
+        document.getElementById("whatsapp-status").textContent = data.whatsappConfigured ? "· Connected" : "";
+        document.getElementById("stripe-status").textContent = data.stripeConfigured ? "· Connected" : "";
+      } catch (err) {}
+    }
+
+    document.getElementById("business-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      KaziUI.showError("business-error", "");
+      var btn = document.getElementById("business-submit-btn");
+      var original = btn.textContent;
+      try {
+        await KaziAPI.patch("/business/me", {
+          name: val("name"),
+          kraPin: val("kraPin"),
+          vatRate: Number(val("vatRate")),
+          invoicePrefix: val("invoicePrefix"),
+          quotePrefix: val("quotePrefix"),
+        });
+        btn.textContent = "Saved ✓";
+        setTimeout(function () { btn.textContent = original; }, 2000);
+      } catch (err) {
+        KaziUI.showError("business-error", err.message || "Something went wrong");
+      }
+    });
+
+    async function saveIntegration(payload) {
+      try {
+        await KaziAPI.patch("/business/integrations", payload);
+        loadIntegrations();
+      } catch (err) {
+        alert(err.message || "Something went wrong");
+      }
+    }
+    window.saveIntegration = saveIntegration;
+  </script>
+</body>
+</html>

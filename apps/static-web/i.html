@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Invoice</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <main class="container" style="max-width:600px;padding-top:40px;padding-bottom:40px;">
+    <div class="space-between mb-2">
+      <h1 class="text-xl font-semibold" id="business-name">Loading…</h1>
+      <span id="status-badge"></span>
+    </div>
+
+    <div class="card" id="page-body" style="display:none;">
+      <h2 class="text-lg font-semibold" id="invoice-title"></h2>
+      <p class="text-sm text-secondary mt-1" id="invoice-meta"></p>
+
+      <table class="mt-2">
+        <tbody id="items-body"></tbody>
+      </table>
+      <div class="text-right mt-2">
+        <p class="font-semibold" id="invoice-balance"></p>
+      </div>
+
+      <div class="mt-3" id="pay-section" style="border-top:1px solid var(--line-hairline);padding-top:24px;">
+        <p class="success-text" id="sent-message" style="display:none;">STK push sent — check your phone to complete payment.</p>
+        <form id="pay-form">
+          <div class="field-group">
+            <label class="label" for="phone">Pay via M-Pesa — enter your phone number</label>
+            <input class="input" id="phone" placeholder="2547XXXXXXXX" required />
+          </div>
+          <p class="error-text" id="error" style="display:none;"></p>
+          <button type="submit" class="btn btn-primary btn-block" id="pay-btn">Pay with M-Pesa</button>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script>
+    var token = new URLSearchParams(window.location.search).get("token");
+    var invoice = null;
+
+    if (!token) {
+      document.getElementById("business-name").textContent = "Missing invoice (?token=... required)";
+    } else {
+      load();
+    }
+
+    async function load() {
+      try {
+        invoice = await KaziAPI.public.get("/invoices/public/" + encodeURIComponent(token));
+        render();
+      } catch (err) {
+        document.getElementById("business-name").textContent = "Invoice not found";
+      }
+    }
+
+    function render() {
+      document.getElementById("business-name").textContent = invoice.business.name;
+      document.title = "Invoice " + invoice.number;
+      document.getElementById("status-badge").innerHTML = KaziUI.badgeHtml(invoice.status);
+      document.getElementById("invoice-title").textContent = "Invoice " + invoice.number;
+      document.getElementById("invoice-meta").textContent =
+        "Billed to " + invoice.client.fullName + " · Due " + KaziUI.formatDate(invoice.dueDate);
+
+      document.getElementById("items-body").innerHTML = invoice.items
+        .map(function (item) {
+          return (
+            "<tr><td>" + KaziUI.escapeHtml(item.description) + "</td>" +
+            '<td class="text-right">' + item.quantity + "</td>" +
+            '<td class="text-right font-semibold">' + KaziUI.money(item.lineTotal, invoice.currency) + "</td></tr>"
+          );
+        })
+        .join("");
+      document.getElementById("invoice-balance").textContent =
+        "Balance due: " + KaziUI.money(invoice.balanceDue, invoice.currency);
+
+      document.getElementById("pay-section").style.display = Number(invoice.balanceDue) > 0 ? "block" : "none";
+      document.getElementById("page-body").style.display = "block";
+    }
+
+    document.getElementById("pay-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      KaziUI.showError("error", "");
+      var btn = document.getElementById("pay-btn");
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+      try {
+        await KaziAPI.public.post("/payments/public/" + encodeURIComponent(token) + "/mpesa-stk-push", {
+          phoneNumber: document.getElementById("phone").value,
+        });
+        document.getElementById("pay-form").style.display = "none";
+        document.getElementById("sent-message").style.display = "block";
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+        btn.disabled = false;
+        btn.textContent = "Pay with M-Pesa";
+      }
+    });
+  </script>
+</body>
+</html>

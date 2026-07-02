@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quotation</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <main class="container" style="max-width:600px;padding-top:40px;padding-bottom:40px;">
+    <div class="space-between mb-2">
+      <h1 class="text-xl font-semibold" id="business-name">Loading…</h1>
+      <span id="status-badge"></span>
+    </div>
+
+    <div class="card" id="page-body" style="display:none;">
+      <h2 class="text-lg font-semibold" id="quote-title"></h2>
+      <p class="text-sm text-secondary mt-1" id="quote-client"></p>
+
+      <table class="mt-2">
+        <tbody id="items-body"></tbody>
+      </table>
+      <div class="text-right mt-2">
+        <p class="font-semibold" id="quote-total"></p>
+      </div>
+
+      <form id="approve-form" class="mt-3" style="border-top:1px solid var(--line-hairline);padding-top:24px;">
+        <div class="field-group">
+          <label class="label" for="signatureName">Type your full name to sign &amp; approve</label>
+          <input class="input" id="signatureName" required />
+        </div>
+        <p class="error-text" id="error" style="display:none;"></p>
+        <div class="row gap-2">
+          <button type="submit" class="btn btn-primary" style="flex:1;" id="approve-btn">Approve &amp; sign</button>
+          <button type="button" class="btn btn-secondary" id="decline-btn">Decline</button>
+        </div>
+      </form>
+
+      <p class="text-sm text-secondary mt-3" id="already-decided" style="display:none;border-top:1px solid var(--line-hairline);padding-top:24px;"></p>
+    </div>
+  </main>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script>
+    var token = new URLSearchParams(window.location.search).get("token");
+    var quotation = null;
+
+    if (!token) {
+      document.getElementById("business-name").textContent = "Missing quotation (?token=... required)";
+    } else {
+      load();
+    }
+
+    async function load() {
+      try {
+        quotation = await KaziAPI.public.get("/quotations/public/" + encodeURIComponent(token));
+        render();
+      } catch (err) {
+        document.getElementById("business-name").textContent = "Quotation not found";
+      }
+    }
+
+    function render() {
+      document.getElementById("business-name").textContent = quotation.business.name;
+      document.title = "Quotation " + quotation.number;
+      document.getElementById("status-badge").innerHTML = KaziUI.badgeHtml(quotation.status);
+      document.getElementById("quote-title").textContent = "Quotation " + quotation.number + " — " + quotation.title;
+      document.getElementById("quote-client").textContent = "Prepared for " + quotation.client.fullName;
+
+      document.getElementById("items-body").innerHTML = quotation.items
+        .map(function (item) {
+          return (
+            "<tr><td>" + KaziUI.escapeHtml(item.description) + "</td>" +
+            '<td class="text-right">' + item.quantity + "</td>" +
+            '<td class="text-right font-semibold">' + KaziUI.money(item.lineTotal, quotation.currency) + "</td></tr>"
+          );
+        })
+        .join("");
+      document.getElementById("quote-total").textContent = "Total: " + KaziUI.money(quotation.total, quotation.currency);
+
+      var canDecide = quotation.status === "SENT" || quotation.status === "VIEWED";
+      document.getElementById("approve-form").style.display = canDecide ? "block" : "none";
+      var decided = document.getElementById("already-decided");
+      if (!canDecide) {
+        decided.style.display = "block";
+        decided.textContent = "This quotation has already been " + quotation.status.toLowerCase() + ".";
+      }
+      document.getElementById("page-body").style.display = "block";
+    }
+
+    document.getElementById("approve-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      KaziUI.showError("error", "");
+      var btn = document.getElementById("approve-btn");
+      btn.disabled = true;
+      btn.textContent = "Submitting…";
+      try {
+        await KaziAPI.public.post("/quotations/public/" + encodeURIComponent(token) + "/approve", {
+          signatureName: document.getElementById("signatureName").value,
+        });
+        await load();
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Approve & sign";
+      }
+    });
+
+    document.getElementById("decline-btn").addEventListener("click", async function () {
+      this.disabled = true;
+      try {
+        await KaziAPI.public.post("/quotations/public/" + encodeURIComponent(token) + "/decline", {});
+        await load();
+      } finally {
+        this.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

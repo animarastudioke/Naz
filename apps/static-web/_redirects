@@ -1,0 +1,10 @@
+# Netlify redirect rules: the API sends WhatsApp/email links in the form
+# /q/<token>, /i/<token>, /b/<token>, /pay/<token> (to keep links short and
+# clean for clients). This site serves the same content as query-string
+# static pages, so bridge one to the other here rather than changing the
+# API's link-generation code.
+/q/:token    /q.html?token=:token    200
+/i/:token    /i.html?token=:token    200
+/b/:token    /b.html?token=:token    200
+/pay/:token  /pay.html?token=:token  200
+/book/:slug  /book.html?slug=:slug  200

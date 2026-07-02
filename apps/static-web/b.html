@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Manage your booking</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <main class="center-screen">
+    <div class="card" style="width:100%;max-width:380px;">
+      <div class="space-between mb-2">
+        <h1 class="text-lg font-semibold" id="business-name">Loading…</h1>
+        <span id="status-badge"></span>
+      </div>
+      <p class="text-sm text-secondary" id="service-name"></p>
+      <p class="font-semibold" id="start-at"></p>
+
+      <div id="manage-section" style="display:none;border-top:1px solid var(--line-hairline);margin-top:24px;padding-top:24px;">
+        <form id="reschedule-form">
+          <label class="label">Reschedule</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <input class="input" type="date" id="date" required />
+            <input class="input" type="time" id="time" required />
+          </div>
+          <p class="error-text" id="error" style="display:none;margin-top:8px;"></p>
+          <button type="submit" class="btn btn-primary btn-block mt-2" id="reschedule-btn">Request new time</button>
+        </form>
+        <button class="btn btn-secondary btn-block mt-2" id="cancel-btn">Cancel booking</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script>
+    var token = new URLSearchParams(window.location.search).get("token");
+    var booking = null;
+
+    if (!token) {
+      document.getElementById("business-name").textContent = "Missing booking (?token=... required)";
+    } else {
+      load();
+    }
+
+    async function load() {
+      try {
+        booking = await KaziAPI.public.get("/public/bookings/" + encodeURIComponent(token));
+        render();
+      } catch (err) {
+        document.getElementById("business-name").textContent = "Booking not found";
+      }
+    }
+
+    function render() {
+      document.getElementById("business-name").textContent = booking.business.name;
+      document.getElementById("status-badge").innerHTML = KaziUI.badgeHtml(booking.status);
+      document.getElementById("service-name").textContent = booking.service.name;
+      document.getElementById("start-at").textContent = KaziUI.formatDateTime(booking.startAt);
+
+      var canManage = ["CANCELLED", "COMPLETED", "NO_SHOW"].indexOf(booking.status) === -1;
+      document.getElementById("manage-section").style.display = canManage ? "block" : "none";
+    }
+
+    document.getElementById("reschedule-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      KaziUI.showError("error", "");
+      var btn = document.getElementById("reschedule-btn");
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+      try {
+        var date = document.getElementById("date").value;
+        var time = document.getElementById("time").value;
+        var startAt = new Date(date + "T" + time + ":00");
+        var endAt = new Date(startAt.getTime() + booking.service.durationMins * 60000);
+        await KaziAPI.public.post("/public/bookings/" + encodeURIComponent(token) + "/reschedule", {
+          startAt: startAt.toISOString(),
+          endAt: endAt.toISOString(),
+        });
+        await load();
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Request new time";
+      }
+    });
+
+    document.getElementById("cancel-btn").addEventListener("click", async function () {
+      this.disabled = true;
+      try {
+        await KaziAPI.public.post("/public/bookings/" + encodeURIComponent(token) + "/cancel", {
+          reason: "Cancelled by client",
+        });
+        await load();
+      } finally {
+        this.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

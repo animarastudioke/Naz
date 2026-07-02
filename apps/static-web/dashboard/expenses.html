@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Expenses — KaziHQ</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content">
+      <div class="space-between mb-3">
+        <div>
+          <h1 class="text-2xl font-semibold">Expenses &amp; payouts</h1>
+          <p class="text-secondary mt-1">Track spend and what you owe vendors or team members.</p>
+        </div>
+        <button class="btn btn-primary" id="add-btn">Add expense</button>
+      </div>
+
+      <div class="row gap-1 mb-2">
+        <button class="btn btn-secondary" id="tab-expenses" onclick="setTab('expenses')">Expenses</button>
+        <button class="btn btn-secondary" id="tab-payouts" onclick="setTab('payouts')">Vendor payouts</button>
+      </div>
+
+      <div class="table-wrap" id="expenses-table">
+        <table>
+          <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th></tr></thead>
+          <tbody id="expenses-body"></tbody>
+        </table>
+      </div>
+      <div class="table-wrap" id="payouts-table" style="display:none;">
+        <table>
+          <thead><tr><th>Vendor</th><th>Description</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+          <tbody id="payouts-body"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="empty-state" style="display:none;">Nothing here yet.</div>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="expense-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="text-lg font-semibold">Add expense</h2>
+        <button class="btn btn-ghost" onclick="KaziUI.closeModal('expense-modal')">✕</button>
+      </div>
+      <form id="expense-form">
+        <div class="field-group">
+          <label class="label">Category</label>
+          <select class="input" id="category">
+            <option>SUPPLIES</option><option>TRAVEL</option><option>MARKETING</option><option>SOFTWARE</option>
+            <option>VENDOR_PAYOUT</option><option>UTILITIES</option><option>RENT</option><option>OTHER</option>
+          </select>
+        </div>
+        <div class="field-group"><label class="label">Description</label><input class="input" id="description" required /></div>
+        <div class="field-group"><label class="label">Amount (KES)</label><input class="input" type="number" min="0.01" step="0.01" id="amount" required /></div>
+        <div class="field-group"><label class="label">Date incurred</label><input class="input" type="date" id="incurredAt" required /></div>
+        <p class="error-text" id="expense-error" style="display:none;"></p>
+        <button type="submit" class="btn btn-primary btn-block" id="expense-submit-btn">Add expense</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="payout-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="text-lg font-semibold">Add vendor payout</h2>
+        <button class="btn btn-ghost" onclick="KaziUI.closeModal('payout-modal')">✕</button>
+      </div>
+      <form id="payout-form">
+        <div class="field-group"><label class="label">Vendor / team member name</label><input class="input" id="vendorName" required /></div>
+        <div class="field-group"><label class="label">Description</label><input class="input" id="payoutDescription" required /></div>
+        <div class="field-group"><label class="label">Amount (KES)</label><input class="input" type="number" min="0.01" step="0.01" id="payoutAmount" required /></div>
+        <p class="error-text" id="payout-error" style="display:none;"></p>
+        <button type="submit" class="btn btn-primary btn-block" id="payout-submit-btn">Add payout</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script>
+    var currentTab = "expenses";
+
+    if (KaziUI.initDashboardShell()) {
+      loadExpenses();
+      loadPayouts();
+      document.getElementById("add-btn").addEventListener("click", function () {
+        KaziUI.openModal(currentTab === "expenses" ? "expense-modal" : "payout-modal");
+      });
+    }
+
+    function setTab(tab) {
+      currentTab = tab;
+      document.getElementById("expenses-table").style.display = tab === "expenses" ? "block" : "none";
+      document.getElementById("payouts-table").style.display = tab === "payouts" ? "block" : "none";
+      document.getElementById("add-btn").textContent = tab === "expenses" ? "Add expense" : "Add payout";
+    }
+    window.setTab = setTab;
+
+    async function loadExpenses() {
+      try {
+        var data = await KaziAPI.get("/expenses");
+        document.getElementById("expenses-body").innerHTML = data
+          .map(function (e) {
+            return (
+              "<tr><td>" + KaziUI.formatDate(e.incurredAt) + "</td><td>" + KaziUI.escapeHtml(e.category) + "</td>" +
+              "<td>" + KaziUI.escapeHtml(e.description) + "</td><td>" + KaziUI.money(e.amount) + "</td></tr>"
+            );
+          })
+          .join("");
+        if (data.length === 0 && currentTab === "expenses") document.getElementById("empty-state").style.display = "block";
+      } catch (err) {}
+    }
+
+    async function loadPayouts() {
+      try {
+        var data = await KaziAPI.get("/vendor-payouts");
+        document.getElementById("payouts-body").innerHTML = data
+          .map(function (p) {
+            var markPaid = p.status !== "PAID"
+              ? '<button class="btn btn-ghost btn-sm" onclick="markPayoutPaid(\'' + p.id + "')\">Mark paid</button>"
+              : "";
+            return (
+              "<tr><td>" + (p.vendor ? KaziUI.escapeHtml(p.vendor.user.fullName) : KaziUI.escapeHtml(p.vendorName || "")) + "</td>" +
+              "<td>" + KaziUI.escapeHtml(p.description) + "</td><td>" + KaziUI.money(p.amount) + "</td>" +
+              "<td>" + KaziUI.badgeHtml(p.status) + "</td><td>" + markPaid + "</td></tr>"
+            );
+          })
+          .join("");
+      } catch (err) {}
+    }
+
+    async function markPayoutPaid(id) {
+      try {
+        await KaziAPI.patch("/vendor-payouts/" + id + "/status", { status: "PAID" });
+        loadPayouts();
+      } catch (err) {}
+    }
+    window.markPayoutPaid = markPayoutPaid;
+
+    document.getElementById("expense-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      KaziUI.showError("expense-error", "");
+      var btn = document.getElementById("expense-submit-btn");
+      btn.disabled = true;
+      try {
+        await KaziAPI.post("/expenses", {
+          category: document.getElementById("category").value,
+          description: document.getElementById("description").value,
+          amount: Number(document.getElementById("amount").value),
+          incurredAt: new Date(document.getElementById("incurredAt").value).toISOString(),
+        });
+        KaziUI.closeModal("expense-modal");
+        document.getElementById("expense-form").reset();
+        loadExpenses();
+      } catch (err) {
+        KaziUI.showError("expense-error", err.message || "Something went wrong");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById("payout-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      KaziUI.showError("payout-error", "");
+      var btn = document.getElementById("payout-submit-btn");
+      btn.disabled = true;
+      try {
+        await KaziAPI.post("/vendor-payouts", {
+          vendorName: document.getElementById("vendorName").value,
+          description: document.getElementById("payoutDescription").value,
+          amount: Number(document.getElementById("payoutAmount").value),
+        });
+        KaziUI.closeModal("payout-modal");
+        document.getElementById("payout-form").reset();
+        loadPayouts();
+      } catch (err) {
+        KaziUI.showError("payout-error", err.message || "Something went wrong");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

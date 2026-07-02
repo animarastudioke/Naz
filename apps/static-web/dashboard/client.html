@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Client — KaziHQ</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content">
+      <h1 class="text-2xl font-semibold" id="client-name">Loading…</h1>
+      <p class="text-secondary mt-1" id="client-meta"></p>
+
+      <div class="grid-2 mt-3">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Bookings</h3></div>
+          <ul class="stack gap-1" id="bookings-list" style="list-style:none;padding:0;margin:0;"></ul>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Quotations</h3></div>
+          <ul class="stack gap-1" id="quotations-list" style="list-style:none;padding:0;margin:0;"></ul>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Invoices</h3></div>
+          <ul class="stack gap-1" id="invoices-list" style="list-style:none;padding:0;margin:0;"></ul>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Communication timeline</h3></div>
+          <ul class="stack gap-2" id="communications-list" style="list-style:none;padding:0;margin:0;"></ul>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script>
+    var clientId = new URLSearchParams(window.location.search).get("id");
+
+    if (KaziUI.initDashboardShell()) {
+      if (!clientId) {
+        document.getElementById("client-name").textContent = "Missing client (?id=... required)";
+      } else {
+        load();
+      }
+    }
+
+    async function load() {
+      try {
+        var c = await KaziAPI.get("/clients/" + clientId);
+        document.getElementById("client-name").textContent = c.fullName;
+        document.getElementById("client-meta").textContent =
+          c.phone + (c.email ? " · " + c.email : "") + (c.company ? " · " + c.company : "");
+
+        renderList("bookings-list", c.bookings, "No bookings yet", function (b) {
+          return rowHtml(b.service.name + " — " + KaziUI.formatDateTime(b.startAt), b.status);
+        });
+        renderList("quotations-list", c.quotations, "No quotations yet", function (q) {
+          return rowHtml(q.number + " — " + KaziUI.money(q.total), q.status);
+        });
+        renderList("invoices-list", c.invoices, "No invoices yet", function (i) {
+          return rowHtml(i.number + " — balance " + KaziUI.money(i.balanceDue), i.status);
+        });
+        renderList("communications-list", c.communications, "No messages logged yet", function (entry) {
+          return (
+            '<li><div class="text-xs text-muted"><strong style="color:var(--ink);">' + KaziUI.escapeHtml(entry.channel) +
+            "</strong> · " + (entry.direction === "INBOUND" ? "received" : "sent") + " · " + KaziUI.formatDateTime(entry.createdAt) +
+            '</div><p class="text-secondary" style="margin-top:2px;">' + KaziUI.escapeHtml(entry.message) + "</p></li>"
+          );
+        });
+      } catch (err) {
+        document.getElementById("client-name").textContent = "Client not found";
+      }
+    }
+
+    function rowHtml(text, status) {
+      return '<li class="space-between text-sm"><span>' + KaziUI.escapeHtml(text) + "</span>" + KaziUI.badgeHtml(status) + "</li>";
+    }
+
+    function renderList(elId, items, emptyMessage, renderItem) {
+      var el = document.getElementById(elId);
+      if (!items || items.length === 0) {
+        el.innerHTML = '<li class="text-sm text-muted">' + emptyMessage + "</li>";
+        return;
+      }
+      el.innerHTML = items.map(renderItem).join("");
+    }
+  </script>
+</body>
+</html>

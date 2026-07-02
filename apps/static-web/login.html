@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in — KaziHQ</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <main class="center-screen">
+    <div class="card" style="width:100%;max-width:380px;">
+      <h1 class="text-xl font-semibold mb-1">Welcome back</h1>
+      <p class="text-sm text-secondary mb-3">Sign in to your KaziHQ workspace</p>
+
+      <div id="membership-picker" style="display:none;"></div>
+
+      <form id="login-form">
+        <div class="field-group">
+          <label class="label" for="email">Email</label>
+          <input class="input" id="email" type="email" required />
+        </div>
+        <div class="field-group">
+          <label class="label" for="password">Password</label>
+          <input class="input" id="password" type="password" required />
+        </div>
+        <p class="error-text" id="error" style="display:none;"></p>
+        <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Sign in</button>
+      </form>
+
+      <p class="text-sm text-secondary mt-3" style="text-align:center;">
+        Don't have an account? <a href="/register.html" style="color:var(--brand-600);font-weight:500;">Start free</a>
+      </p>
+    </div>
+  </main>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script>
+    var preAuthToken = null;
+
+    document.getElementById("login-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      KaziUI.showError("error", "");
+      var btn = document.getElementById("submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Signing in…";
+      try {
+        var res = await KaziAPI.public.post("/auth/login", {
+          email: document.getElementById("email").value,
+          password: document.getElementById("password").value,
+        });
+        if (res.requiresBusinessSelection) {
+          preAuthToken = res.preAuthToken;
+          renderMembershipPicker(res.memberships);
+          return;
+        }
+        KaziAPI.session.set(res);
+        window.location.href = "/dashboard/index.html";
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Sign in";
+      }
+    });
+
+    function renderMembershipPicker(memberships) {
+      document.getElementById("login-form").style.display = "none";
+      var picker = document.getElementById("membership-picker");
+      picker.style.display = "block";
+      picker.innerHTML = memberships
+        .map(function (m) {
+          return (
+            '<button class="btn btn-secondary btn-block mb-1" style="justify-content:flex-start;text-align:left;" ' +
+            'onclick="selectBusiness(\'' + m.businessId + '\')">' +
+            "<strong>" + KaziUI.escapeHtml(m.businessName) + "</strong>" +
+            '<span class="text-muted" style="margin-left:8px;">' + KaziUI.escapeHtml(m.role) + "</span>" +
+            "</button>"
+          );
+        })
+        .join("");
+    }
+
+    async function selectBusiness(businessId) {
+      try {
+        var res = await KaziAPI.public.post("/auth/select-business", { preAuthToken: preAuthToken, businessId: businessId });
+        KaziAPI.session.set(res);
+        window.location.href = "/dashboard/index.html";
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+      }
+    }
+  </script>
+</body>
+</html>
