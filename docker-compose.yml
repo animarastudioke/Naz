@@ -39,6 +39,15 @@ services:
         condition: service_healthy
     env_file:
       - apps/api/.env
+    environment:
+      # Always override whatever DATABASE_URL is in apps/api/.env: that file
+      # is also used for `npm run dev:api` outside Docker, where Postgres is
+      # reached via `localhost`. Inside this compose network Postgres is only
+      # reachable via the service name `postgres` -- using the .env value
+      # as-is here would silently point at the wrong host and crash-loop the
+      # container. `environment:` takes precedence over `env_file:` for the
+      # same key, so this is authoritative regardless of what's in .env.
+      DATABASE_URL: postgresql://kazihq:kazihq@postgres:5432/kazihq?schema=public
     ports:
       - "4000:4000"
 
