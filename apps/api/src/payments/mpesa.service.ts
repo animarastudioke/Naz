@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import axios from "axios";
+import { nanoid } from "nanoid";
 import { PrismaService } from "../prisma/prisma.service";
 
 interface MpesaCredentials {
@@ -8,6 +9,13 @@ interface MpesaCredentials {
   consumerSecret: string;
   passkey: string;
   env: string;
+}
+
+export interface StkPushResult {
+  merchantRequestId: string;
+  checkoutRequestId: string;
+  responseDescription: string;
+  isDryRun: boolean;
 }
 
 /** Safaricom Daraja API client — STK Push (Lipa na M-Pesa Online) scoped per business. */
@@ -21,10 +29,10 @@ export class MpesaService {
     return env === "production" ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
   }
 
-  private async getCredentials(businessId: string): Promise<MpesaCredentials> {
+  private async getCredentials(businessId: string): Promise<MpesaCredentials | null> {
     const integration = await this.prisma.businessIntegration.findUnique({ where: { businessId } });
     if (!integration?.mpesaShortcode || !integration?.mpesaConsumerKey || !integration?.mpesaConsumerSecret || !integration?.mpesaPasskey) {
-      throw new BadRequestException("M-Pesa is not configured for this business yet. Add your Daraja credentials in Settings.");
+      return null;
     }
     return {
       shortcode: integration.mpesaShortcode,
@@ -49,8 +57,21 @@ export class MpesaService {
     return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
   }
 
-  async stkPush(businessId: string, phoneNumber: string, amount: number, accountReference: string) {
+  async stkPush(businessId: string, phoneNumber: string, amount: number, accountReference: string): Promise<StkPushResult> {
     const creds = await this.getCredentials(businessId);
+
+    if (!creds) {
+      this.logger.log(
+        `[mpesa:dry-run] No Daraja credentials configured — simulating STK push of ${amount} to ${phoneNumber} (ref: ${accountReference})`
+      );
+      return {
+        merchantRequestId: `dryrun-${nanoid(10)}`,
+        checkoutRequestId: `dryrun-${nanoid(10)}`,
+        responseDescription: "Simulated STK push — no Daraja credentials configured for this business",
+        isDryRun: true,
+      };
+    }
+
     const accessToken = await this.getAccessToken(creds);
     const timestamp = this.timestamp();
     const password = Buffer.from(`${creds.shortcode}${creds.passkey}${timestamp}`).toString("base64");
@@ -78,6 +99,7 @@ export class MpesaService {
         merchantRequestId: data.MerchantRequestID as string,
         checkoutRequestId: data.CheckoutRequestID as string,
         responseDescription: data.ResponseDescription as string,
+        isDryRun: false,
       };
     } catch (error: any) {
       this.logger.error("M-Pesa STK push failed", error?.response?.data ?? error);
