@@ -1,5 +1,13 @@
 FROM node:20-alpine AS base
 WORKDIR /repo
+# Prisma's engine binaries are dynamically linked against OpenSSL, which
+# node:20-alpine does not include by default. Without it, the engine process
+# crashes on startup and Prisma reports a confusing "Could not parse schema
+# engine response" error instead of the real cause. Installed here in the
+# base stage so both `prisma generate` (at build time, so it fetches the
+# engine variant matching what's actually available) and the runtime CMD
+# (which executes that engine) see the same OpenSSL.
+RUN apk add --no-cache openssl
 
 FROM base AS deps
 COPY package.json package-lock.json* ./
