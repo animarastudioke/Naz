@@ -156,6 +156,13 @@ npm run dev:web   # http://localhost:3000
 docker compose up --build
 ```
 
+### Windows desktop launcher
+
+For running KaziHQ locally on a Windows PC without touching a terminal, see
+[`desktop-launcher/`](./desktop-launcher/) — a double-click `.exe` that drives
+`docker compose` for you (requires Docker Desktop). See its README for setup
+and troubleshooting.
+
 ## Security & compliance
 
 - Passwords hashed with bcrypt (cost 12); refresh tokens stored as SHA-256 hashes, rotated on use

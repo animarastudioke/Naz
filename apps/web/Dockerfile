@@ -5,7 +5,14 @@ FROM base AS deps
 COPY package.json package-lock.json* ./
 COPY packages/shared/package.json packages/shared/package.json
 COPY apps/web/package.json apps/web/package.json
-RUN npm install --workspaces --include-workspace-root
+# npm can print a fatal-looking "Exit handler never called!" yet still exit 0
+# while leaving node_modules incomplete (a known upstream npm bug under heavy
+# I/O) -- so verify the install actually produced binaries instead of trusting
+# the exit code, and retry if it didn't.
+RUN npm install --workspaces --include-workspace-root; \
+  test -x node_modules/.bin/tsc || (rm -rf node_modules && npm install --workspaces --include-workspace-root); \
+  test -x node_modules/.bin/tsc || (rm -rf node_modules && npm install --workspaces --include-workspace-root); \
+  test -x node_modules/.bin/tsc
 
 FROM deps AS build
 COPY packages/shared packages/shared

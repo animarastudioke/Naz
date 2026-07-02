@@ -33,7 +33,7 @@ export class PaymentsService {
 
     const result = await this.mpesa.stkPush(businessId, dto.phoneNumber, dto.amount, dto.accountReference);
 
-    return this.prisma.payment.create({
+    const payment = await this.prisma.payment.create({
       data: {
         businessId,
         invoiceId: dto.invoiceId,
@@ -46,6 +46,34 @@ export class PaymentsService {
         mpesaPhoneNumber: dto.phoneNumber,
       },
     });
+
+    if (result.isDryRun) {
+      // No Daraja credentials configured: simulate the customer entering their PIN and
+      // Safaricom's async callback arriving a few seconds later, so the full STK push ->
+      // payment success -> invoice reconciliation loop is observable in dev/demo without
+      // real M-Pesa access.
+      setTimeout(() => {
+        this.handleMpesaCallback({
+          Body: {
+            stkCallback: {
+              MerchantRequestID: result.merchantRequestId,
+              CheckoutRequestID: result.checkoutRequestId,
+              ResultCode: 0,
+              ResultDesc: "The service request is processed successfully. (simulated dry run)",
+              CallbackMetadata: {
+                Item: [
+                  { Name: "Amount", Value: dto.amount },
+                  { Name: "MpesaReceiptNumber", Value: `DRYRUN${nanoid(6).toUpperCase()}` },
+                  { Name: "PhoneNumber", Value: dto.phoneNumber },
+                ],
+              },
+            },
+          },
+        }).catch(() => undefined);
+      }, 4000);
+    }
+
+    return { ...payment, isDryRun: result.isDryRun };
   }
 
   async handleMpesaCallback(payload: any) {
