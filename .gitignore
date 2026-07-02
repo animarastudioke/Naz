@@ -12,3 +12,4 @@ coverage/
 *.tsbuildinfo
 apps/api/generated/
 .turbo/
+desktop-launcher/*.exe
