@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Clients — KaziHQ</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content">
+      <div class="space-between mb-3">
+        <div>
+          <h1 class="text-2xl font-semibold">Clients</h1>
+          <p class="text-secondary mt-1">Your CRM — every client, booking and conversation in one place.</p>
+        </div>
+        <button class="btn btn-primary" onclick="KaziUI.openModal('add-client-modal')">Add client</button>
+      </div>
+
+      <div class="mb-2" style="max-width:320px;">
+        <input class="input" id="search-input" placeholder="Search by name, phone, email…" />
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Phone</th><th>Company</th><th>Segment</th><th>Loyalty pts</th></tr>
+          </thead>
+          <tbody id="clients-body"></tbody>
+        </table>
+        <div class="empty-state" id="empty-state" style="display:none;">No clients yet — add your first one.</div>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="add-client-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="text-lg font-semibold">Add client</h2>
+        <button class="btn btn-ghost" onclick="KaziUI.closeModal('add-client-modal')">✕</button>
+      </div>
+      <form id="add-client-form">
+        <div class="field-group">
+          <label class="label">Full name</label>
+          <input class="input" id="fullName" required />
+        </div>
+        <div class="field-group">
+          <label class="label">Phone (WhatsApp)</label>
+          <input class="input" id="phone" placeholder="2547XXXXXXXX" required />
+        </div>
+        <div class="field-group">
+          <label class="label">Email</label>
+          <input class="input" id="email" type="email" />
+        </div>
+        <div class="field-group">
+          <label class="label">Company</label>
+          <input class="input" id="company" />
+        </div>
+        <div class="field-group">
+          <label class="label">Notes</label>
+          <textarea class="input" id="notes" rows="3"></textarea>
+        </div>
+        <p class="error-text" id="error" style="display:none;"></p>
+        <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Add client</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script>
+    if (KaziUI.initDashboardShell()) {
+      load();
+      document.getElementById("search-input").addEventListener("input", debounce(load, 300));
+    }
+
+    function debounce(fn, ms) {
+      var t;
+      return function () {
+        clearTimeout(t);
+        t = setTimeout(fn, ms);
+      };
+    }
+
+    async function load() {
+      var search = document.getElementById("search-input").value;
+      var path = "/clients" + (search ? "?search=" + encodeURIComponent(search) : "");
+      try {
+        var clients = await KaziAPI.get(path);
+        renderClients(clients);
+      } catch (err) {}
+    }
+
+    function renderClients(clients) {
+      var body = document.getElementById("clients-body");
+      document.getElementById("empty-state").style.display = clients.length === 0 ? "block" : "none";
+      body.innerHTML = clients
+        .map(function (c) {
+          return (
+            "<tr>" +
+            '<td><a href="/dashboard/client.html?id=' + c.id + '" style="color:var(--brand-600);font-weight:500;">' + KaziUI.escapeHtml(c.fullName) + "</a></td>" +
+            "<td>" + KaziUI.escapeHtml(c.phone) + "</td>" +
+            "<td>" + (c.company ? KaziUI.escapeHtml(c.company) : "—") + "</td>" +
+            "<td>" + (c.segment ? KaziUI.escapeHtml(c.segment) : "—") + "</td>" +
+            "<td>" + c.loyaltyPoints + "</td>" +
+            "</tr>"
+          );
+        })
+        .join("");
+    }
+
+    document.getElementById("add-client-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      KaziUI.showError("error", "");
+      var btn = document.getElementById("submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+      try {
+        await KaziAPI.post("/clients", {
+          fullName: document.getElementById("fullName").value,
+          phone: document.getElementById("phone").value,
+          email: document.getElementById("email").value || undefined,
+          company: document.getElementById("company").value || undefined,
+          notes: document.getElementById("notes").value || undefined,
+        });
+        KaziUI.closeModal("add-client-modal");
+        document.getElementById("add-client-form").reset();
+        load();
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Add client";
+      }
+    });
+  </script>
+</body>
+</html>

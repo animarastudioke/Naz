@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Set your password — KaziHQ</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <main class="center-screen">
+    <div class="card" style="width:100%;max-width:380px;">
+      <h1 class="text-xl font-semibold mb-1">Set your password</h1>
+      <p class="text-sm text-secondary mb-3">Finish joining your team's workspace</p>
+
+      <p class="success-text" id="done-message" style="display:none;">Password set — redirecting you to sign in…</p>
+
+      <form id="invite-form">
+        <div class="field-group">
+          <label class="label" for="password">New password</label>
+          <input class="input" id="password" type="password" minlength="8" required />
+        </div>
+        <p class="error-text" id="error" style="display:none;"></p>
+        <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Set password &amp; continue</button>
+      </form>
+    </div>
+  </main>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script>
+    var params = new URLSearchParams(window.location.search);
+    var token = params.get("token") || "";
+
+    document.getElementById("invite-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      KaziUI.showError("error", "");
+      var btn = document.getElementById("submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+      try {
+        await KaziAPI.public.post("/users/accept-invite", {
+          token: token,
+          password: document.getElementById("password").value,
+        });
+        document.getElementById("invite-form").style.display = "none";
+        document.getElementById("done-message").style.display = "block";
+        setTimeout(function () {
+          window.location.href = "/login.html";
+        }, 1500);
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+        btn.disabled = false;
+        btn.textContent = "Set password & continue";
+      }
+    });
+
+    if (!token) {
+      document.getElementById("submit-btn").disabled = true;
+    }
+  </script>
+</body>
+</html>

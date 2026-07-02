@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quotations — KaziHQ</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content">
+      <div class="space-between mb-3">
+        <div>
+          <h1 class="text-2xl font-semibold">Quotations</h1>
+          <p class="text-secondary mt-1">Send branded quotes clients can approve on WhatsApp.</p>
+        </div>
+        <div class="row gap-1">
+          <button class="btn btn-secondary" onclick="KaziUI.openModal('ai-modal')">✨ Generate from WhatsApp chat</button>
+          <button class="btn btn-primary" onclick="openNewQuoteModal()">New quotation</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Number</th><th>Client</th><th>Title</th><th>Total</th><th>Status</th></tr></thead>
+          <tbody id="quotations-body"></tbody>
+        </table>
+        <div class="empty-state" id="empty-state" style="display:none;">No quotations yet.</div>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="ai-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="text-lg font-semibold">Generate quotation from WhatsApp conversation</h2>
+        <button class="btn btn-ghost" onclick="KaziUI.closeModal('ai-modal')">✕</button>
+      </div>
+      <div class="field-group">
+        <label class="label">Paste the conversation</label>
+        <textarea class="input" id="conversationText" rows="8" placeholder="Client: Hi, I need a wedding photographer...&#10;You: Sure! We'd recommend our full day package..."></textarea>
+      </div>
+      <p class="error-text" id="ai-error" style="display:none;"></p>
+      <button class="btn btn-primary btn-block" id="ai-submit-btn" onclick="generateFromConversation()">Generate draft</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="new-quote-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="text-lg font-semibold">New quotation</h2>
+        <button class="btn btn-ghost" onclick="KaziUI.closeModal('new-quote-modal')">✕</button>
+      </div>
+      <form id="quote-form">
+        <div class="field-group">
+          <label class="label">Client</label>
+          <select class="input" id="clientId" required><option value="">Select client…</option></select>
+        </div>
+        <div class="field-group">
+          <label class="label">Title</label>
+          <input class="input" id="title" required />
+        </div>
+        <label class="label">Line items</label>
+        <div id="items-rows"></div>
+        <button type="button" class="btn btn-ghost btn-sm mt-1" onclick="addItemRow()">+ Add line item</button>
+        <div class="text-right mt-2 font-semibold" id="quote-total-preview">Total: KES 0</div>
+        <p class="error-text" id="error" style="display:none;"></p>
+        <button type="submit" class="btn btn-primary btn-block mt-2" id="submit-btn">Create quotation</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script>
+    if (KaziUI.initDashboardShell()) {
+      load();
+      KaziAPI.get("/clients").then(populateClients).catch(function () {});
+    }
+
+    async function load() {
+      try {
+        var quotations = await KaziAPI.get("/quotations");
+        renderQuotations(quotations);
+      } catch (err) {}
+    }
+
+    function populateClients(clients) {
+      var select = document.getElementById("clientId");
+      select.innerHTML = '<option value="">Select client…</option>';
+      clients.forEach(function (c) {
+        var opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.fullName;
+        select.appendChild(opt);
+      });
+    }
+
+    function renderQuotations(quotations) {
+      document.getElementById("empty-state").style.display = quotations.length === 0 ? "block" : "none";
+      document.getElementById("quotations-body").innerHTML = quotations
+        .map(function (q) {
+          return (
+            '<tr><td><a href="/dashboard/quotation.html?id=' + q.id + '" style="color:var(--brand-600);font-weight:500;">' + q.number + "</a></td>" +
+            "<td>" + KaziUI.escapeHtml(q.client.fullName) + "</td>" +
+            "<td>" + KaziUI.escapeHtml(q.title) + "</td>" +
+            "<td>" + KaziUI.money(q.total) + "</td>" +
+            "<td>" + KaziUI.badgeHtml(q.status) + "</td></tr>"
+          );
+        })
+        .join("");
+    }
+
+    function openNewQuoteModal() {
+      document.getElementById("items-rows").innerHTML = "";
+      addItemRow();
+      KaziUI.openModal("new-quote-modal");
+    }
+    window.openNewQuoteModal = openNewQuoteModal;
+
+    function addItemRow(item) {
+      item = item || { description: "", quantity: 1, unitPrice: 0, taxRate: 16 };
+      var row = document.createElement("div");
+      row.className = "line-item-row";
+      row.innerHTML =
+        '<input class="input" placeholder="Description" value="' + KaziUI.escapeHtml(item.description) + '" data-field="description" />' +
+        '<input class="input" type="number" min="0.01" step="0.01" placeholder="Qty" value="' + item.quantity + '" data-field="quantity" />' +
+        '<input class="input" type="number" min="0" step="0.01" placeholder="Unit price" value="' + item.unitPrice + '" data-field="unitPrice" />' +
+        '<input class="input" type="number" min="0" placeholder="VAT%" value="' + item.taxRate + '" data-field="taxRate" />' +
+        '<button type="button" class="btn btn-ghost btn-sm" onclick="this.parentElement.remove(); updateTotalPreview();">✕</button>';
+      row.querySelectorAll("input").forEach(function (input) {
+        input.addEventListener("input", updateTotalPreview);
+      });
+      document.getElementById("items-rows").appendChild(row);
+      updateTotalPreview();
+    }
+    window.addItemRow = addItemRow;
+
+    function collectItems() {
+      var rows = document.querySelectorAll("#items-rows .line-item-row");
+      return Array.prototype.map.call(rows, function (row) {
+        return {
+          description: row.querySelector('[data-field="description"]').value,
+          quantity: Number(row.querySelector('[data-field="quantity"]').value) || 0,
+          unitPrice: Number(row.querySelector('[data-field="unitPrice"]').value) || 0,
+          taxRate: Number(row.querySelector('[data-field="taxRate"]').value) || 0,
+        };
+      });
+    }
+
+    function updateTotalPreview() {
+      var items = collectItems();
+      var total = items.reduce(function (sum, i) { return sum + i.quantity * i.unitPrice * (1 + i.taxRate / 100); }, 0);
+      document.getElementById("quote-total-preview").textContent = "Total: " + KaziUI.money(total);
+    }
+    window.updateTotalPreview = updateTotalPreview;
+
+    document.getElementById("quote-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      KaziUI.showError("error", "");
+      var btn = document.getElementById("submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+      try {
+        await KaziAPI.post("/quotations", {
+          clientId: document.getElementById("clientId").value,
+          title: document.getElementById("title").value,
+          items: collectItems(),
+        });
+        KaziUI.closeModal("new-quote-modal");
+        document.getElementById("quote-form").reset();
+        load();
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Create quotation";
+      }
+    });
+
+    async function generateFromConversation() {
+      KaziUI.showError("ai-error", "");
+      var btn = document.getElementById("ai-submit-btn");
+      var text = document.getElementById("conversationText").value;
+      if (text.length < 20) {
+        KaziUI.showError("ai-error", "Paste a longer conversation (at least 20 characters).");
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "Reading conversation…";
+      try {
+        var draft = await KaziAPI.post("/ai/quote-from-conversation", { conversationText: text });
+        KaziUI.closeModal("ai-modal");
+        document.getElementById("items-rows").innerHTML = "";
+        (draft.items && draft.items.length ? draft.items : [{}]).forEach(function (item) {
+          addItemRow({
+            description: item.description || "",
+            quantity: item.quantity || 1,
+            unitPrice: item.unitPrice || 0,
+            taxRate: item.taxRate || 16,
+          });
+        });
+        document.getElementById("title").value = draft.title || "";
+        KaziUI.openModal("new-quote-modal");
+      } catch (err) {
+        KaziUI.showError("ai-error", err.message || "Could not generate a draft");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Generate draft";
+      }
+    }
+    window.generateFromConversation = generateFromConversation;
+  </script>
+</body>
+</html>

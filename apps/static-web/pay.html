@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pay invoice</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <main class="center-screen">
+    <div class="card" style="width:100%;max-width:380px;text-align:center;" id="page-body">
+      <h1 class="text-lg font-semibold" id="business-name">Loading…</h1>
+      <p class="text-2xl font-semibold mt-2" id="amount"></p>
+      <p class="text-sm text-secondary mt-1" id="invoice-number"></p>
+
+      <p class="success-text mt-3" id="sent-message" style="display:none;">STK push sent — check your phone to complete payment.</p>
+
+      <form id="pay-form" class="mt-3" style="text-align:left;">
+        <div class="field-group">
+          <label class="label" for="phone">M-Pesa phone number</label>
+          <input class="input" id="phone" placeholder="2547XXXXXXXX" required />
+        </div>
+        <p class="error-text" id="error" style="display:none;"></p>
+        <button type="submit" class="btn btn-primary btn-block" id="pay-btn">Pay with M-Pesa</button>
+      </form>
+    </div>
+  </main>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script>
+    var token = new URLSearchParams(window.location.search).get("token");
+    var link = null;
+
+    if (!token) {
+      document.getElementById("business-name").textContent = "Missing payment link (?token=... required)";
+    } else {
+      load();
+    }
+
+    async function load() {
+      try {
+        link = await KaziAPI.public.get("/payments/links/" + encodeURIComponent(token));
+        document.getElementById("business-name").textContent = link.invoice.business.name;
+        document.getElementById("amount").textContent = KaziUI.money(link.amount, link.invoice.currency);
+        document.getElementById("invoice-number").textContent = "Invoice " + link.invoice.number;
+      } catch (err) {
+        document.getElementById("business-name").textContent = "Payment link not found or expired";
+      }
+    }
+
+    document.getElementById("pay-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      KaziUI.showError("error", "");
+      var btn = document.getElementById("pay-btn");
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+      try {
+        await KaziAPI.public.post("/payments/public/links/" + encodeURIComponent(token) + "/mpesa-stk-push", {
+          phoneNumber: document.getElementById("phone").value,
+        });
+        document.getElementById("pay-form").style.display = "none";
+        document.getElementById("sent-message").style.display = "block";
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+        btn.disabled = false;
+        btn.textContent = "Pay with M-Pesa";
+      }
+    });
+  </script>
+</body>
+</html>

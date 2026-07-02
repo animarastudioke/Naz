@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Invoice — KaziHQ</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content">
+      <div class="space-between mb-3">
+        <div>
+          <h1 class="text-2xl font-semibold" id="invoice-heading">Loading…</h1>
+          <p class="text-secondary mt-1" id="invoice-meta"></p>
+        </div>
+        <span id="status-badge"></span>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-header"><h3 class="card-title">Line items</h3></div>
+        <table><tbody id="items-body"></tbody></table>
+        <div class="text-right mt-2" style="line-height:1.8;">
+          <p id="total-line"></p>
+          <p id="paid-line"></p>
+          <p class="font-semibold" id="balance-line"></p>
+        </div>
+      </div>
+
+      <p class="error-text" id="error" style="display:none;"></p>
+      <div class="row gap-2 mb-3" style="flex-wrap:wrap;">
+        <button class="btn btn-primary" id="send-whatsapp-btn">Send via WhatsApp</button>
+        <button class="btn btn-secondary" id="send-email-btn">Send via email</button>
+        <a id="pdf-link" target="_blank" rel="noreferrer"><button class="btn btn-secondary" type="button">Download PDF</button></a>
+        <button class="btn btn-secondary" id="mpesa-btn" style="display:none;" onclick="KaziUI.openModal('mpesa-modal')">Collect via M-Pesa</button>
+        <button class="btn btn-secondary" id="bank-btn" style="display:none;">Record bank transfer</button>
+        <button class="btn btn-secondary" id="cash-btn" style="display:none;">Record cash payment</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">Payment history</h3></div>
+        <ul class="stack gap-1" id="payments-list" style="list-style:none;padding:0;margin:0;"></ul>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="mpesa-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="text-lg font-semibold">Collect via M-Pesa STK push</h2>
+        <button class="btn btn-ghost" onclick="KaziUI.closeModal('mpesa-modal')">✕</button>
+      </div>
+      <form id="mpesa-form">
+        <div class="field-group">
+          <label class="label">Client phone number</label>
+          <input class="input" id="phone" placeholder="2547XXXXXXXX" required />
+        </div>
+        <p class="text-sm text-secondary mb-2" id="mpesa-amount-note"></p>
+        <button type="submit" class="btn btn-primary btn-block" id="mpesa-submit-btn">Send STK push</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script>
+    var invoiceId = new URLSearchParams(window.location.search).get("id");
+    var invoice = null;
+
+    if (KaziUI.initDashboardShell()) {
+      if (!invoiceId) {
+        document.getElementById("invoice-heading").textContent = "Missing invoice (?id=... required)";
+      } else {
+        load();
+      }
+    }
+
+    async function load() {
+      try {
+        invoice = await KaziAPI.get("/invoices/" + invoiceId);
+        render();
+      } catch (err) {
+        document.getElementById("invoice-heading").textContent = "Invoice not found";
+      }
+    }
+
+    function render() {
+      document.getElementById("invoice-heading").textContent = "Invoice " + invoice.number;
+      document.getElementById("invoice-meta").textContent =
+        invoice.client.fullName + " · Due " + KaziUI.formatDate(invoice.dueDate);
+      document.getElementById("status-badge").innerHTML = KaziUI.badgeHtml(invoice.status);
+
+      document.getElementById("items-body").innerHTML = invoice.items
+        .map(function (item) {
+          return (
+            "<tr><td>" + KaziUI.escapeHtml(item.description) + "</td>" +
+            '<td class="text-right">' + item.quantity + "</td>" +
+            '<td class="text-right">' + KaziUI.money(item.unitPrice) + "</td>" +
+            '<td class="text-right font-semibold">' + KaziUI.money(item.lineTotal) + "</td></tr>"
+          );
+        })
+        .join("");
+      document.getElementById("total-line").textContent = "Total: " + KaziUI.money(invoice.total);
+      document.getElementById("paid-line").textContent = "Paid: " + KaziUI.money(invoice.amountPaid);
+      document.getElementById("balance-line").textContent = "Balance due: " + KaziUI.money(invoice.balanceDue);
+
+      document.getElementById("pdf-link").href = window.KAZIHQ_API_URL + "/invoices/" + invoiceId + "/pdf";
+
+      var hasBalance = Number(invoice.balanceDue) > 0;
+      ["mpesa-btn", "bank-btn", "cash-btn"].forEach(function (id) {
+        document.getElementById(id).style.display = hasBalance ? "inline-flex" : "none";
+      });
+      document.getElementById("mpesa-amount-note").textContent =
+        "We'll send an STK push for " + KaziUI.money(invoice.balanceDue) + ".";
+
+      var paymentsList = document.getElementById("payments-list");
+      if (!invoice.payments || invoice.payments.length === 0) {
+        paymentsList.innerHTML = '<li class="text-sm text-muted">No payments recorded yet</li>';
+      } else {
+        paymentsList.innerHTML = invoice.payments
+          .map(function (p) {
+            return (
+              '<li class="space-between text-sm"><span>' + KaziUI.escapeHtml(p.method) + " — " + KaziUI.money(p.amount) + "</span>" +
+              KaziUI.badgeHtml(p.status) + "</li>"
+            );
+          })
+          .join("");
+      }
+    }
+
+    async function send(channel) {
+      KaziUI.showError("error", "");
+      try {
+        await KaziAPI.post("/invoices/" + invoiceId + "/send?channel=" + channel);
+        load();
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+      }
+    }
+    document.getElementById("send-whatsapp-btn").addEventListener("click", function () { send("whatsapp"); });
+    document.getElementById("send-email-btn").addEventListener("click", function () { send("email"); });
+
+    async function recordManual(method) {
+      KaziUI.showError("error", "");
+      try {
+        await KaziAPI.post("/payments/manual", { invoiceId: invoiceId, amount: Number(invoice.balanceDue), method: method });
+        load();
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+      }
+    }
+    document.getElementById("bank-btn").addEventListener("click", function () { recordManual("BANK_TRANSFER"); });
+    document.getElementById("cash-btn").addEventListener("click", function () { recordManual("CASH"); });
+
+    document.getElementById("mpesa-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var btn = document.getElementById("mpesa-submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+      try {
+        await KaziAPI.post("/payments/mpesa/stk-push", {
+          invoiceId: invoiceId,
+          phoneNumber: document.getElementById("phone").value,
+          amount: Number(invoice.balanceDue),
+          accountReference: invoice.number,
+        });
+        KaziUI.closeModal("mpesa-modal");
+        alert("STK push sent — ask your client to check their phone.");
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Send STK push";
+      }
+    });
+  </script>
+</body>
+</html>

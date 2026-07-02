@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bookings — KaziHQ</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content">
+      <div class="space-between mb-3">
+        <div>
+          <h1 class="text-2xl font-semibold">Bookings</h1>
+          <p class="text-secondary mt-1">Appointments, availability and reminders.</p>
+        </div>
+        <button class="btn btn-primary" onclick="KaziUI.openModal('new-booking-modal')">New booking</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Client</th><th>Service</th><th>When</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="bookings-body"></tbody>
+        </table>
+        <div class="empty-state" id="empty-state" style="display:none;">No bookings yet — create one or share your online booking page.</div>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="new-booking-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="text-lg font-semibold">New booking</h2>
+        <button class="btn btn-ghost" onclick="KaziUI.closeModal('new-booking-modal')">✕</button>
+      </div>
+      <form id="booking-form">
+        <div class="field-group">
+          <label class="label">Client</label>
+          <select class="input" id="clientId" required><option value="">Select client…</option></select>
+        </div>
+        <div class="field-group">
+          <label class="label">Service</label>
+          <select class="input" id="serviceId" required><option value="">Select service…</option></select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div class="field-group"><input class="input" type="date" id="date" required /></div>
+          <div class="field-group"><input class="input" type="time" id="time" required /></div>
+        </div>
+        <p class="error-text" id="error" style="display:none;"></p>
+        <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Create booking</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script>
+    var services = [];
+
+    if (KaziUI.initDashboardShell()) {
+      load();
+      KaziAPI.get("/clients").then(populateClients).catch(function () {});
+      KaziAPI.get("/services").then(function (data) { services = data; populateServices(data); }).catch(function () {});
+    }
+
+    async function load() {
+      try {
+        var bookings = await KaziAPI.get("/bookings");
+        renderBookings(bookings);
+      } catch (err) {}
+    }
+
+    function populateClients(clients) {
+      var select = document.getElementById("clientId");
+      clients.forEach(function (c) {
+        var opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.fullName;
+        select.appendChild(opt);
+      });
+    }
+    function populateServices(list) {
+      var select = document.getElementById("serviceId");
+      list.forEach(function (s) {
+        var opt = document.createElement("option");
+        opt.value = s.id;
+        opt.textContent = s.name + " (" + s.durationMins + "min)";
+        select.appendChild(opt);
+      });
+    }
+
+    function renderBookings(bookings) {
+      document.getElementById("empty-state").style.display = bookings.length === 0 ? "block" : "none";
+      document.getElementById("bookings-body").innerHTML = bookings
+        .map(function (b) {
+          var actions = "";
+          if (b.status !== "COMPLETED" && b.status !== "CANCELLED") {
+            actions =
+              '<button class="btn btn-ghost btn-sm" onclick="updateStatus(\'' + b.id + "', 'COMPLETED')\">Mark complete</button> " +
+              '<button class="btn btn-ghost btn-sm" style="color:var(--status-critical);" onclick="updateStatus(\'' + b.id + "', 'CANCELLED')\">Cancel</button>";
+          }
+          return (
+            "<tr><td>" + KaziUI.escapeHtml(b.client.fullName) + "</td>" +
+            "<td>" + KaziUI.escapeHtml(b.service.name) + "</td>" +
+            "<td>" + KaziUI.formatDateTime(b.startAt) + "</td>" +
+            "<td>" + KaziUI.badgeHtml(b.status) + "</td>" +
+            "<td>" + actions + "</td></tr>"
+          );
+        })
+        .join("");
+    }
+
+    async function updateStatus(id, status) {
+      try {
+        await KaziAPI.patch("/bookings/" + id + "/status", { status: status });
+        load();
+      } catch (err) {}
+    }
+    window.updateStatus = updateStatus;
+
+    document.getElementById("booking-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      KaziUI.showError("error", "");
+      var btn = document.getElementById("submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Booking…";
+      try {
+        var serviceId = document.getElementById("serviceId").value;
+        var service = services.find(function (s) { return s.id === serviceId; });
+        var startAt = new Date(document.getElementById("date").value + "T" + document.getElementById("time").value + ":00");
+        var endAt = new Date(startAt.getTime() + (service ? service.durationMins : 60) * 60000);
+        await KaziAPI.post("/bookings", {
+          clientId: document.getElementById("clientId").value,
+          serviceId: serviceId,
+          startAt: startAt.toISOString(),
+          endAt: endAt.toISOString(),
+        });
+        KaziUI.closeModal("new-booking-modal");
+        document.getElementById("booking-form").reset();
+        load();
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Create booking";
+      }
+    });
+  </script>
+</body>
+</html>

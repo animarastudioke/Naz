@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quotation — KaziHQ</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content">
+      <div class="space-between mb-3">
+        <div>
+          <h1 class="text-2xl font-semibold" id="quote-heading">Loading…</h1>
+          <p class="text-secondary mt-1" id="quote-client"></p>
+        </div>
+        <span id="status-badge"></span>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-header"><h3 class="card-title">Line items</h3></div>
+        <table><tbody id="items-body"></tbody></table>
+        <div class="text-right mt-2" style="line-height:1.8;">
+          <p id="subtotal-line"></p>
+          <p id="tax-line"></p>
+          <p class="font-semibold" id="total-line"></p>
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-header"><h3 class="card-title">Client approval link</h3></div>
+        <p style="color:var(--brand-600);word-break:break-all;" id="approval-link"></p>
+        <p class="text-xs text-muted mt-1">Share this via WhatsApp for one-tap client approval and e-signature.</p>
+      </div>
+
+      <p class="error-text" id="error" style="display:none;"></p>
+      <div class="row gap-2">
+        <button class="btn btn-primary" id="send-whatsapp-btn">Send via WhatsApp</button>
+        <button class="btn btn-secondary" id="send-email-btn">Send via email</button>
+        <button class="btn btn-secondary" id="convert-btn" style="display:none;" onclick="KaziUI.openModal('convert-modal')">Convert to invoice</button>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="convert-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2 class="text-lg font-semibold">Convert to invoice</h2>
+        <button class="btn btn-ghost" onclick="KaziUI.closeModal('convert-modal')">✕</button>
+      </div>
+      <form id="convert-form">
+        <div class="field-group">
+          <label class="label">Due date</label>
+          <input class="input" type="date" id="dueDate" required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="convert-submit-btn">Create invoice</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script>
+    var quotationId = new URLSearchParams(window.location.search).get("id");
+    var quotation = null;
+
+    if (KaziUI.initDashboardShell()) {
+      if (!quotationId) {
+        document.getElementById("quote-heading").textContent = "Missing quotation (?id=... required)";
+      } else {
+        load();
+      }
+    }
+
+    async function load() {
+      try {
+        quotation = await KaziAPI.get("/quotations/" + quotationId);
+        render();
+      } catch (err) {
+        document.getElementById("quote-heading").textContent = "Quotation not found";
+      }
+    }
+
+    function render() {
+      document.getElementById("quote-heading").textContent = quotation.number + " — " + quotation.title;
+      document.getElementById("quote-client").textContent = quotation.client.fullName;
+      document.getElementById("status-badge").innerHTML = KaziUI.badgeHtml(quotation.status);
+
+      document.getElementById("items-body").innerHTML = quotation.items
+        .map(function (item) {
+          return (
+            "<tr><td>" + KaziUI.escapeHtml(item.description) + "</td>" +
+            '<td class="text-right">' + item.quantity + "</td>" +
+            '<td class="text-right">' + KaziUI.money(item.unitPrice) + "</td>" +
+            '<td class="text-right font-semibold">' + KaziUI.money(item.lineTotal) + "</td></tr>"
+          );
+        })
+        .join("");
+      document.getElementById("subtotal-line").textContent = "Subtotal: " + KaziUI.money(quotation.subtotal);
+      document.getElementById("tax-line").textContent = "Tax: " + KaziUI.money(quotation.taxAmount);
+      document.getElementById("total-line").textContent = "Total: " + KaziUI.money(quotation.total);
+
+      document.getElementById("approval-link").textContent = window.location.origin + "/q.html?token=" + quotation.publicToken;
+      document.getElementById("convert-btn").style.display = quotation.status === "APPROVED" ? "inline-flex" : "none";
+    }
+
+    async function send(channel) {
+      KaziUI.showError("error", "");
+      try {
+        await KaziAPI.post("/quotations/" + quotationId + "/send?channel=" + channel);
+        load();
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+      }
+    }
+    document.getElementById("send-whatsapp-btn").addEventListener("click", function () { send("whatsapp"); });
+    document.getElementById("send-email-btn").addEventListener("click", function () { send("email"); });
+
+    document.getElementById("convert-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var btn = document.getElementById("convert-submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Converting…";
+      try {
+        var dueDate = new Date(document.getElementById("dueDate").value).toISOString();
+        var invoice = await KaziAPI.post("/quotations/" + quotationId + "/convert-to-invoice", { dueDate: dueDate });
+        window.location.href = "/dashboard/invoice.html?id=" + invoice.id;
+      } catch (err) {
+        KaziUI.showError("error", err.message || "Something went wrong");
+        btn.disabled = false;
+        btn.textContent = "Create invoice";
+      }
+    });
+  </script>
+</body>
+</html>

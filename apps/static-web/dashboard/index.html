@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Overview — KaziHQ</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content">
+      <h1 class="text-2xl font-semibold" id="welcome-heading">Welcome back</h1>
+      <p class="text-secondary mt-1">Here's how your business is performing.</p>
+
+      <div class="grid-stats mt-3">
+        <div class="card stat-tile">
+          <p class="stat-label">Revenue (all time)</p>
+          <p class="stat-value" id="stat-revenue">—</p>
+        </div>
+        <div class="card stat-tile">
+          <p class="stat-label">Outstanding receivables</p>
+          <p class="stat-value" id="stat-outstanding">—</p>
+        </div>
+        <div class="card stat-tile">
+          <p class="stat-label">Net profit</p>
+          <p class="stat-value" id="stat-profit">—</p>
+        </div>
+        <div class="card stat-tile">
+          <p class="stat-label">Vendor payouts due</p>
+          <p class="stat-value" id="stat-payouts">—</p>
+        </div>
+      </div>
+
+      <div class="grid-2 mt-3">
+        <div class="card" style="grid-column: span 2;">
+          <div class="card-header"><h3 class="card-title">Revenue — last 6 months</h3></div>
+          <div id="trend-chart"></div>
+        </div>
+      </div>
+      <div class="grid-2 mt-3">
+        <div class="card">
+          <div class="card-header"><h3 class="card-title">Most profitable services</h3></div>
+          <div id="top-services-chart"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/ui.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script src="/assets/js/charts.js"></script>
+  <script>
+    if (KaziUI.initDashboardShell()) {
+      var biz = KaziAPI.session.getBusiness();
+      if (biz) document.getElementById("welcome-heading").textContent = "Welcome back, " + biz.name;
+
+      KaziAPI.get("/analytics/dashboard").then(function (data) {
+        document.getElementById("stat-revenue").textContent = KaziUI.money(data.totalRevenue);
+        document.getElementById("stat-outstanding").textContent = KaziUI.money(data.outstandingReceivables);
+        document.getElementById("stat-profit").textContent = KaziUI.money(data.netProfit);
+        document.getElementById("stat-payouts").textContent = KaziUI.money(data.vendorPayoutsDue);
+      }).catch(function () {});
+
+      KaziAPI.get("/analytics/sales-trend?months=6").then(function (data) {
+        var points = data.map(function (t) {
+          return { label: new Date(t.month).toLocaleDateString("en-KE", { month: "short" }), value: t.total };
+        });
+        KaziCharts.renderTrendLineChart("trend-chart", points, "KES");
+      }).catch(function () { KaziCharts.renderTrendLineChart("trend-chart", [], "KES"); });
+
+      KaziAPI.get("/analytics/top-services?limit=5").then(function (data) {
+        var points = data.map(function (s) { return { label: s.name, value: s.total }; });
+        KaziCharts.renderRankedBarChart("top-services-chart", points, "KES");
+      }).catch(function () { KaziCharts.renderRankedBarChart("top-services-chart", [], "KES"); });
+    }
+  </script>
+</body>
+</html>
