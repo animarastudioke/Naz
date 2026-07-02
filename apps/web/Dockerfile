@@ -17,6 +17,11 @@ RUN npm install --workspaces --include-workspace-root; \
 FROM deps AS build
 COPY packages/shared packages/shared
 COPY apps/web apps/web
+# Next.js inlines NEXT_PUBLIC_* variables at build time, not at container
+# startup, so the API's URL has to be supplied as a build argument rather
+# than a normal runtime environment variable.
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 RUN npm run build --workspace=packages/shared
 RUN npm run build --workspace=apps/web
 

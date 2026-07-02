@@ -9,7 +9,7 @@ async function bootstrap() {
 
   app.use(helmet());
   app.enableCors({
-    origin: process.env.WEB_APP_URL?.split(",") ?? "*",
+    origin: process.env.WEB_APP_URL ? process.env.WEB_APP_URL.split(",") : "*",
     credentials: true,
   });
   app.useGlobalPipes(

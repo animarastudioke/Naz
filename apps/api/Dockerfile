@@ -28,4 +28,4 @@ COPY --from=build /repo/packages/shared ./packages/shared
 COPY --from=build /repo/apps/api ./apps/api
 WORKDIR /repo/apps/api
 EXPOSE 4000
-CMD ["node", "dist/main.js"]
+CMD ["sh", "-c", "npm run prisma:deploy && node dist/main.js"]
