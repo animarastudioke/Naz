@@ -1,0 +1,688 @@
+<title>World — Naz</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#080B14;font-family:'Courier New',Courier,monospace;color:#E8EAF4;overflow:hidden}
+
+.shell{display:flex;flex-direction:column;height:100vh;max-width:820px;margin:0 auto;position:relative}
+
+.top-bar{
+  flex-shrink:0;
+  display:flex;align-items:center;gap:16px;
+  padding:12px 20px;
+  border-bottom:1px solid #1D2744;
+}
+.game-title{font-size:.7rem;letter-spacing:.45em;color:#3F6AC8;font-weight:700}
+.sep{color:#1D2744}
+.view-name{font-size:.6rem;letter-spacing:.3em;color:#404868}
+.coords{font-size:.6rem;letter-spacing:.15em;color:#3A5A8A;margin-left:auto}
+
+.canvas-wrap{
+  flex:1;
+  position:relative;
+  overflow:hidden;
+}
+canvas{display:block;width:100%;height:100%}
+
+/* vignette */
+.canvas-wrap::after{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(8,11,20,.85) 100%);
+  pointer-events:none;
+}
+
+.hud{
+  flex-shrink:0;
+  display:flex;align-items:center;gap:12px;
+  padding:10px 20px;
+  border-top:1px solid #1D2744;
+  background:rgba(8,11,20,.9);
+}
+.hud-char{display:flex;align-items:center;gap:10px;min-width:160px}
+.hud-char.right{flex-direction:row-reverse}
+.portrait{
+  width:32px;height:32px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.55rem;letter-spacing:.1em;
+  clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%);
+}
+.portrait.m{background:#0E3F88;color:#6A94F0;border:1px solid #3F6AC8}
+.portrait.f{background:#7B0838;color:#FF70B8;border:1px solid #E84090}
+.hud-stats{display:flex;flex-direction:column;gap:4px;flex:1}
+.hud-name{font-size:.58rem;letter-spacing:.2em;color:#A0A8CC}
+.hud-bar{height:3px;background:#1D2744;position:relative}
+.hud-fill{height:100%;transition:width .3s}
+.hud-fill.hp{background:#3F6AC8}
+.hud-fill.hp.f{background:#E84090}
+.hud-center{flex:1;text-align:center;font-size:.55rem;letter-spacing:.3em;color:#263050}
+</style>
+
+<div class="shell">
+  <header class="top-bar">
+    <span class="game-title">NAZ</span>
+    <span class="sep">—</span>
+    <span class="view-name">OVERWORLD</span>
+    <span class="coords" id="coords">◈ &nbsp;ASHVEIL CROSSING</span>
+  </header>
+
+  <div class="canvas-wrap">
+    <canvas id="world"></canvas>
+  </div>
+
+  <footer class="hud">
+    <div class="hud-char">
+      <div class="portrait m">K</div>
+      <div class="hud-stats">
+        <span class="hud-name">KAEL · VANGUARD</span>
+        <div class="hud-bar"><div class="hud-fill hp" style="width:85%"></div></div>
+      </div>
+    </div>
+
+    <div class="hud-center">ASHVEIL CROSSING</div>
+
+    <div class="hud-char right">
+      <div class="portrait f">L</div>
+      <div class="hud-stats">
+        <span class="hud-name">LYRA · ARCANIST</span>
+        <div class="hud-bar"><div class="hud-fill hp f" style="width:68%"></div></div>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script>
+const canvas = document.getElementById('world');
+const ctx    = canvas.getContext('2d');
+
+// ── Constants
+const TW = 64, TH = 32;
+
+// ── Tile map  (12 cols × 9 rows)
+const TILES = [
+  ['W','W','W','G','G','G','G','G','G','G','G','G'],
+  ['W','W','G','G','G','G','G','G','G','G','G','G'],
+  ['W','G','G','G','G','G','G','G','G','G','G','G'],
+  ['G','G','G','G','D','D','G','G','G','G','G','G'],
+  ['G','G','G','D','D','G','G','G','G','G','G','G'],
+  ['G','G','G','D','G','S','S','G','G','G','G','G'],
+  ['G','G','D','D','G','S','S','G','G','G','G','G'],
+  ['G','G','D','G','G','G','G','G','G','G','G','G'],
+  ['G','D','D','G','G','G','G','G','G','G','G','G'],
+];
+const COLS = TILES[0].length;
+const ROWS = TILES.length;
+
+// ── Object map  key = "col,row"
+const OBJS = {
+  '0,3':['tree'], '0,4':['tree'],
+  '1,0':['tree'], '2,0':['tree'],
+  '10,0':['tree'],'11,0':['tree'],
+  '11,2':['tree'],'11,5':['tree'],
+  '10,8':['tree'],'11,8':['tree'],
+  '0,7':['tree'], '1,8':['tree'],
+  '8,3':['rock'], '2,6':['rock'],
+  '5,5':['building'],
+  '4,6':['kael'],
+  '5,7':['lyra'],
+};
+
+// ── Origin (top vertex of tile 0,0 in screen space)
+// Centred: grid spans (COLS+ROWS)*TW/2 wide = 672, so originX = rows*TW/2 + padding
+let OX, OY;
+
+function resize() {
+  const wrap = canvas.parentElement;
+  canvas.width  = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+  OX = ROWS * (TW / 2) + (canvas.width  - (COLS + ROWS) * (TW / 2)) / 2;
+  OY = 80; // room for tall objects above row 0
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Isometric projection
+function iso(col, row) {
+  return {
+    x: OX + (col - row) * (TW / 2),
+    y: OY + (col + row) * (TH / 2),
+  };
+}
+
+// ── Tile drawing
+function tile(col, row, type, t) {
+  const {x, y} = iso(col, row);
+  const hw = TW / 2, hh = TH / 2;
+
+  let top, left, right;
+
+  if (type === 'W') {
+    const w = 0.5 + 0.5 * Math.sin(t * 1.4 + col * 0.8 + row * 0.5);
+    top   = `rgb(${24+w*12|0},${58+w*14|0},${120+w*22|0})`;
+    left  = '#12346A';
+    right = '#0A2050';
+    // ripple shimmer
+    ctx.save();
+    ctx.globalAlpha = 0.18 * w;
+    ctx.fillStyle = '#60A0FF';
+    ctx.beginPath();
+    ctx.moveTo(x, y + hh + 1);
+    ctx.lineTo(x + hw, y + hh * 0.6 + 1);
+    ctx.lineTo(x, y + hh * 0.3 + 1);
+    ctx.lineTo(x - hw, y + hh * 0.6 + 1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  } else if (type === 'D') {
+    top   = '#8B7050'; left = '#7A6040'; right = '#6A5030';
+  } else if (type === 'S') {
+    top   = '#585870'; left = '#484858'; right = '#383848';
+  } else { // G
+    // slight variation per tile for texture
+    const v = ((col * 7 + row * 13) % 5) * 3;
+    top   = `rgb(${48+v},${102+v},${36+v})`;
+    left  = '#2A5E18';
+    right = '#1A4E08';
+  }
+
+  // Top face
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + hw, y + hh);
+  ctx.lineTo(x, y + TH);
+  ctx.lineTo(x - hw, y + hh);
+  ctx.closePath();
+  ctx.fillStyle = top;
+  ctx.fill();
+
+  // Wall height (thin ground lip)
+  const wh = 5;
+
+  // Left wall
+  ctx.beginPath();
+  ctx.moveTo(x - hw, y + hh);
+  ctx.lineTo(x, y + TH);
+  ctx.lineTo(x, y + TH + wh);
+  ctx.lineTo(x - hw, y + hh + wh);
+  ctx.closePath();
+  ctx.fillStyle = left;
+  ctx.fill();
+
+  // Right wall
+  ctx.beginPath();
+  ctx.moveTo(x, y + TH);
+  ctx.lineTo(x + hw, y + hh);
+  ctx.lineTo(x + hw, y + hh + wh);
+  ctx.lineTo(x, y + TH + wh);
+  ctx.closePath();
+  ctx.fillStyle = right;
+  ctx.fill();
+
+  // Grid edge
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + hw, y + hh);
+  ctx.lineTo(x, y + TH);
+  ctx.lineTo(x - hw, y + hh);
+  ctx.closePath();
+  ctx.stroke();
+}
+
+// ── Tree
+function drawTree(x, y, t, seed) {
+  const sway = Math.sin(t * 0.85 + seed) * 2.2;
+  const bx = x + sway * 0.3;
+  const base = y + TH / 2 + 2;
+
+  // Trunk
+  ctx.fillStyle = '#3A2010';
+  ctx.beginPath();
+  ctx.moveTo(bx - 3, base - 4);
+  ctx.lineTo(bx + 3, base - 4);
+  ctx.lineTo(bx + 4, base + 6);
+  ctx.lineTo(bx - 2, base + 6);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#2A1008';
+  ctx.beginPath();
+  ctx.moveTo(bx + 3, base - 4);
+  ctx.lineTo(bx + 7, base - 2);
+  ctx.lineTo(bx + 8, base + 5);
+  ctx.lineTo(bx + 4, base + 6);
+  ctx.closePath();
+  ctx.fill();
+
+  // Foliage layers (3 stacked cones, drawn back to front)
+  const layers = [
+    { oy: -22 + sway * 0.1, r: 24, h: 18, c1:'#2A5820', c2:'#1A4812', c3:'#3A6830' },
+    { oy: -36 + sway * 0.2, r: 18, h: 14, c1:'#306028', c2:'#205018', c3:'#408038' },
+    { oy: -48 + sway * 0.3, r: 12, h: 10, c1:'#3A6830', c2:'#285820', c3:'#4A7840' },
+  ];
+
+  for (const l of layers) {
+    const lx = bx, ly = base + l.oy;
+
+    // Back half (lighter, top-facing)
+    ctx.beginPath();
+    ctx.moveTo(lx, ly);
+    ctx.lineTo(lx - l.r, ly + l.h);
+    ctx.lineTo(lx, ly + l.h * 0.5);
+    ctx.lineTo(lx + l.r, ly + l.h);
+    ctx.closePath();
+    ctx.fillStyle = l.c3;
+    ctx.fill();
+
+    // Left face
+    ctx.beginPath();
+    ctx.moveTo(lx, ly);
+    ctx.lineTo(lx - l.r, ly + l.h);
+    ctx.lineTo(lx, ly + l.h + 6);
+    ctx.closePath();
+    ctx.fillStyle = l.c1;
+    ctx.fill();
+
+    // Right face
+    ctx.beginPath();
+    ctx.moveTo(lx, ly);
+    ctx.lineTo(lx + l.r, ly + l.h);
+    ctx.lineTo(lx, ly + l.h + 6);
+    ctx.closePath();
+    ctx.fillStyle = l.c2;
+    ctx.fill();
+  }
+}
+
+// ── Rock
+function drawRock(x, y) {
+  const bx = x, by = y + TH / 2;
+
+  ctx.fillStyle = '#686878';
+  ctx.beginPath();
+  ctx.moveTo(bx, by - 14);
+  ctx.lineTo(bx + 14, by - 6);
+  ctx.lineTo(bx + 10, by + 6);
+  ctx.lineTo(bx - 4, by + 8);
+  ctx.lineTo(bx - 16, by + 2);
+  ctx.lineTo(bx - 12, by - 10);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#484858';
+  ctx.beginPath();
+  ctx.moveTo(bx - 4, by + 8);
+  ctx.lineTo(bx + 10, by + 6);
+  ctx.lineTo(bx + 10, by + 16);
+  ctx.lineTo(bx - 4, by + 18);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#383848';
+  ctx.beginPath();
+  ctx.moveTo(bx + 10, by + 6);
+  ctx.lineTo(bx + 14, by - 6);
+  ctx.lineTo(bx + 14, by + 4);
+  ctx.lineTo(bx + 10, by + 16);
+  ctx.closePath();
+  ctx.fill();
+
+  // Highlight
+  ctx.strokeStyle = 'rgba(200,200,220,0.2)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(bx - 10, by - 8);
+  ctx.lineTo(bx, by - 13);
+  ctx.lineTo(bx + 10, by - 5);
+  ctx.stroke();
+}
+
+// ── Building
+function drawBuilding(x, y, t) {
+  const bx = x, by = y;
+  const hw = TW / 2, hh = TH / 2;
+  const H  = 58; // wall height
+  const RH = 24; // extra roof peak
+
+  // Ambient warm glow (torch light)
+  const flicker = 0.7 + 0.3 * Math.sin(t * 8.3 + 0.5) * Math.sin(t * 5.1);
+  const grd = ctx.createRadialGradient(bx, by + TH - H * 0.4, 0, bx, by + TH - H * 0.4, 70);
+  grd.addColorStop(0, `rgba(200,120,40,${0.15 * flicker})`);
+  grd.addColorStop(1, 'transparent');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.ellipse(bx, by + TH - H * 0.4, 70, 50, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Left wall
+  ctx.fillStyle = '#4A4E68';
+  ctx.beginPath();
+  ctx.moveTo(bx - hw, by + hh - H);
+  ctx.lineTo(bx, by + TH - H);
+  ctx.lineTo(bx, by + TH);
+  ctx.lineTo(bx - hw, by + hh);
+  ctx.closePath();
+  ctx.fill();
+  // Stone courses (left)
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 0.5;
+  for (let i = 1; i <= 4; i++) {
+    const fy = i / 5;
+    ctx.beginPath();
+    ctx.moveTo(bx - hw + hw * fy, by + hh - H + H * fy);
+    ctx.lineTo(bx + 0 * fy, by + TH - H + H * fy);
+    ctx.stroke();
+  }
+
+  // Right wall (darker)
+  ctx.fillStyle = '#3A3E58';
+  ctx.beginPath();
+  ctx.moveTo(bx, by + TH - H);
+  ctx.lineTo(bx + hw, by + hh - H);
+  ctx.lineTo(bx + hw, by + hh);
+  ctx.lineTo(bx, by + TH);
+  ctx.closePath();
+  ctx.fill();
+  for (let i = 1; i <= 4; i++) {
+    const fy = i / 5;
+    ctx.beginPath();
+    ctx.moveTo(bx + hw * (1 - fy), by + hh - H + H * fy - hh * (1 - fy));
+    ctx.lineTo(bx + hw, by + hh - H + H * fy);
+    ctx.stroke();
+  }
+
+  // Door (right wall, toward viewer)
+  const dx = bx + hw * 0.35, dy = by + TH;
+  ctx.fillStyle = '#080B14';
+  ctx.beginPath();
+  ctx.moveTo(dx, dy);
+  ctx.lineTo(dx + 11, dy - 5.5);
+  ctx.lineTo(dx + 11, dy - 24);
+  ctx.lineTo(dx + 4, dy - 21);
+  ctx.arc(dx + 4, dy - 21, 7, 0, Math.PI, true);
+  ctx.lineTo(dx, dy - 18);
+  ctx.closePath();
+  ctx.fill();
+  // Door frame
+  ctx.strokeStyle = '#6A6A8A'; ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Window (left wall)
+  const wx = bx - hw * 0.5, wy = by + hh - H + H * 0.38;
+  ctx.fillStyle = `rgba(${200 * flicker|0},${130 * flicker|0},${40 * flicker|0},0.85)`;
+  ctx.beginPath();
+  ctx.moveTo(wx, wy);
+  ctx.lineTo(wx + 9, wy + 4.5);
+  ctx.lineTo(wx + 9, wy + 14);
+  ctx.lineTo(wx, wy + 9.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#6A6A8A'; ctx.lineWidth = 0.8;
+  ctx.stroke();
+
+  // Roof top face (flat platform)
+  ctx.fillStyle = '#6A6A8A';
+  ctx.beginPath();
+  ctx.moveTo(bx, by - H);
+  ctx.lineTo(bx + hw, by + hh - H);
+  ctx.lineTo(bx, by + TH - H);
+  ctx.lineTo(bx - hw, by + hh - H);
+  ctx.closePath();
+  ctx.fill();
+
+  // Roof ridge (peaked)
+  // Left pitch
+  ctx.fillStyle = '#8A5830';
+  ctx.beginPath();
+  ctx.moveTo(bx, by - H - RH);      // peak
+  ctx.lineTo(bx - hw, by + hh - H);
+  ctx.lineTo(bx, by + TH - H);
+  ctx.closePath();
+  ctx.fill();
+  // Right pitch
+  ctx.fillStyle = '#7A4820';
+  ctx.beginPath();
+  ctx.moveTo(bx, by - H - RH);
+  ctx.lineTo(bx + hw, by + hh - H);
+  ctx.lineTo(bx, by + TH - H);
+  ctx.closePath();
+  ctx.fill();
+  // Ridge line
+  ctx.strokeStyle = '#5A3010'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(bx, by - H - RH);
+  ctx.lineTo(bx, by + TH - H);
+  ctx.stroke();
+
+  // Chimney
+  const chx = bx - 10, chy = by + hh - H - RH * 0.6;
+  ctx.fillStyle = '#585870';
+  ctx.beginPath();
+  ctx.moveTo(chx - 4, chy - 10);
+  ctx.lineTo(chx + 2, chy - 13);
+  ctx.lineTo(chx + 2, chy + 4);
+  ctx.lineTo(chx - 4, chy + 1);
+  ctx.closePath();
+  ctx.fill();
+  // Smoke
+  if (Math.sin(t * 3) > 0) {
+    for (let i = 0; i < 3; i++) {
+      const si = i / 3;
+      const sx = chx - 1 + Math.sin(t * 2 + i) * 4 * si;
+      const sy = chy - 14 - i * 10 - ((t * 12 + i * 20) % 30);
+      ctx.fillStyle = `rgba(150,160,180,${(1 - si) * 0.15})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 4 + i * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+// ── Generic isometric character
+function drawChar(x, y, cfg, t) {
+  const { shirt, shirtD, pants, pantsD, skin, skinD, hair, phase } = cfg;
+  const bob = Math.sin(t * 1.9 + phase) * 2.5;
+  const bx = x, by = y + TH / 2 + bob;
+
+  // Ground shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath();
+  ctx.ellipse(bx + 2, y + TH / 2 + 3, 11, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── BOOTS
+  ctx.fillStyle = '#2A1A0A';
+  ctx.beginPath();
+  ctx.moveTo(bx - 9, by);
+  ctx.lineTo(bx - 1, by + 2);
+  ctx.lineTo(bx - 1, by + 5);
+  ctx.lineTo(bx - 9, by + 3);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(bx - 1, by - 2);
+  ctx.lineTo(bx + 7, by);
+  ctx.lineTo(bx + 7, by + 3);
+  ctx.lineTo(bx - 1, by + 1);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── PANTS / SKIRT
+  const skirt = cfg.skirt;
+  if (skirt) {
+    // Wide skirt shape
+    ctx.fillStyle = pants;
+    ctx.beginPath();
+    ctx.moveTo(bx - 13, by - 4);
+    ctx.lineTo(bx + 1, by - 8);
+    ctx.lineTo(bx + 13, by - 2);
+    ctx.lineTo(bx + 13, by - 14);
+    ctx.lineTo(bx + 1, by - 18);
+    ctx.lineTo(bx - 13, by - 14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = pantsD;
+    ctx.beginPath();
+    ctx.moveTo(bx + 1, by - 18);
+    ctx.lineTo(bx + 13, by - 14);
+    ctx.lineTo(bx + 13, by - 2);
+    ctx.lineTo(bx + 1, by - 8);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    // Pants
+    ctx.fillStyle = pants;
+    ctx.beginPath();
+    ctx.moveTo(bx - 9, by - 2);
+    ctx.lineTo(bx - 1, by - 4);
+    ctx.lineTo(bx - 1, by - 16);
+    ctx.lineTo(bx - 9, by - 14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = pantsD;
+    ctx.beginPath();
+    ctx.moveTo(bx - 1, by - 4);
+    ctx.lineTo(bx + 7, by - 2);
+    ctx.lineTo(bx + 7, by - 14);
+    ctx.lineTo(bx - 1, by - 16);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ── TORSO
+  const torsoBase = skirt ? by - 18 : by - 16;
+  ctx.fillStyle = shirt;
+  ctx.beginPath();
+  ctx.moveTo(bx - 10, torsoBase);
+  ctx.lineTo(bx + 1, torsoBase - 4);
+  ctx.lineTo(bx + 10, torsoBase + 2);
+  ctx.lineTo(bx + 10, torsoBase - 12);
+  ctx.lineTo(bx + 1, torsoBase - 16);
+  ctx.lineTo(bx - 10, torsoBase - 12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = shirtD;
+  ctx.beginPath();
+  ctx.moveTo(bx + 1, torsoBase - 4);
+  ctx.lineTo(bx + 10, torsoBase + 2);
+  ctx.lineTo(bx + 10, torsoBase - 12);
+  ctx.lineTo(bx + 1, torsoBase - 16);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── ARM (near, right side)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.moveTo(bx + 10, torsoBase);
+  ctx.lineTo(bx + 16, torsoBase + 4);
+  ctx.lineTo(bx + 14, torsoBase - 8);
+  ctx.lineTo(bx + 10, torsoBase - 12);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── HEAD
+  const headBase = torsoBase - 16;
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.moveTo(bx - 7, headBase);
+  ctx.lineTo(bx + 1, headBase - 3);
+  ctx.lineTo(bx + 9, headBase + 3);
+  ctx.lineTo(bx + 9, headBase - 9);
+  ctx.lineTo(bx + 1, headBase - 12);
+  ctx.lineTo(bx - 7, headBase - 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = skinD;
+  ctx.beginPath();
+  ctx.moveTo(bx + 1, headBase - 3);
+  ctx.lineTo(bx + 9, headBase + 3);
+  ctx.lineTo(bx + 9, headBase - 9);
+  ctx.lineTo(bx + 1, headBase - 12);
+  ctx.closePath();
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#2A1808';
+  ctx.beginPath(); ctx.arc(bx - 2, headBase - 4, 1.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(bx + 4, headBase - 5, 1.4, 0, Math.PI * 2); ctx.fill();
+
+  // ── HAIR
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.moveTo(bx - 7, headBase - 6);
+  ctx.lineTo(bx + 1, headBase - 12);
+  ctx.lineTo(bx + 9, headBase - 9);
+  ctx.lineTo(bx + 9, headBase - 14);
+  ctx.lineTo(bx + 1, headBase - 17);
+  ctx.lineTo(bx - 8, headBase - 10);
+  ctx.closePath();
+  ctx.fill();
+
+  if (cfg.longHair) {
+    // Flowing side hair for Lyra
+    ctx.fillStyle = hair;
+    ctx.beginPath();
+    ctx.moveTo(bx - 7, headBase - 6);
+    ctx.lineTo(bx - 12, headBase + 6);
+    ctx.lineTo(bx - 10, torsoBase - 4);
+    ctx.lineTo(bx - 7, headBase + 2);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+// ── Scene render (painter's order)
+function render(t) {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background: subtle iso grid lines matching character select
+  ctx.strokeStyle = 'rgba(63,106,200,0.04)';
+  ctx.lineWidth = 1;
+  const step = 52;
+  for (let x0 = -H * 2; x0 < W + H * 2; x0 += step) {
+    ctx.beginPath(); ctx.moveTo(x0, 0); ctx.lineTo(x0 + H * 2, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x0, 0); ctx.lineTo(x0 - H * 2, H); ctx.stroke();
+  }
+
+  // Tiles + objects in painter's order
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const {x, y} = iso(col, row);
+
+      // Draw tile
+      tile(col, row, TILES[row][col], t);
+
+      // Draw objects at this cell
+      const objs = OBJS[`${col},${row}`];
+      if (!objs) continue;
+
+      for (const o of objs) {
+        if (o === 'tree')     drawTree(x, y, t, col * 3.7 + row * 2.1);
+        else if (o === 'rock')     drawRock(x, y);
+        else if (o === 'building') drawBuilding(x, y, t);
+        else if (o === 'kael')     drawChar(x, y, {
+          shirt:'#2E5FA8', shirtD:'#0E3F88',
+          pants:'#354560', pantsD:'#152535',
+          skin:'#D4A574',  skinD:'#C49264',
+          hair:'#2C1810',  phase:0,
+        }, t);
+        else if (o === 'lyra')     drawChar(x, y, {
+          shirt:'#E04090', shirtD:'#B03070',
+          pants:'#E04090', pantsD:'#903060',
+          skin:'#D4A574',  skinD:'#C49264',
+          hair:'#8B4513',  phase: Math.PI,
+          skirt: true, longHair: true,
+        }, t);
+      }
+    }
+  }
+}
+
+// ── Loop
+let t0 = null;
+function loop(ts) {
+  if (!t0) t0 = ts;
+  render((ts - t0) / 1000);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
